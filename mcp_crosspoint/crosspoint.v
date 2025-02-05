@@ -11,7 +11,7 @@ module crosspoint
   reg [3:0] bit_count = 0;
   reg [11:0] addr;
 
-  always @(negedge clk_) begin
+  always @(posedge clk_) begin
     if (clear) begin
       bit_count <= 0;
     end else if (bit_count == 12) begin
@@ -25,7 +25,7 @@ module crosspoint
   generate
     genvar i;
     for (i = 0; i < 48; i = i + 1) begin
-      assign outp[i] = |(matrix[i*9 +: 9] & inp_one);
+      assign outp[i] = |(matrix[i*49 +: 49] & inp_one);
     end
   endgenerate
 endmodule

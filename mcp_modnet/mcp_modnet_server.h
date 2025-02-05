@@ -12,12 +12,21 @@
 #define MMN_SRV_FLAG_WRITABLE    0x02
 #define MMN_SRV_FLAG_PRESENCE    0x04
 
+typedef uint32_t mmn_srv_crosspoint_command_t;
+
 typedef enum {
 	MMN_SRV_OPCODE_WRITE = 0,
 	MMN_SRV_OPCODE_READ,
 	MMN_SRV_OPCODE_SET_INTEREST,
-	MMN_SRV_OPCODE_POLL
+	MMN_SRV_OPCODE_POLL,
+	MMN_SRV_OPCODE_CROSSPOINT
 } mmn_srv_opcode_t;
+
+typedef enum {
+	MMN_SRV_XPOINT_PIN_CLK = 0,
+	MMN_SRV_XPOINT_PIN_DAT,
+	MMN_SRV_XPOINT_PIN_CLEAR
+} mmn_srv_xpoint_pin_t;
 
 typedef struct mmn_srv_t mmn_srv_t;
 typedef struct mmn_srv_socket_t mmn_srv_socket_t;
@@ -27,6 +36,11 @@ typedef void (*mmn_srv_isr_set_transfer_cb_t)(void *, mbb_srv_transfer_t trn);
 typedef bool (*mmn_srv_isr_get_transfer_cb_t)(void *, mbb_srv_transfer_t * dst);
 typedef void (*mmn_srv_isr_set_transfer_done_cb_t)(void *, uint8_t read_byte);
 typedef bool (*mmn_srv_isr_get_transfer_done_cb_t)(void *, uint8_t * read_byte_dst);
+typedef void (*mmn_srv_set_crosspoint_command_cb_t)(mmn_srv_t *, mmn_srv_crosspoint_command_t command);
+typedef bool (*mmn_srv_get_crosspoint_command_cb_t)(mmn_srv_t *, mmn_srv_crosspoint_command_t * command_dst);
+typedef void (*mmn_srv_set_crosspoint_command_done_cb_t)(mmn_srv_t *);
+typedef bool (*mmn_srv_get_crosspoint_command_done_cb_t)(mmn_srv_t *);
+typedef void (*mmn_srv_xpoint_pin_write_cb_t)(mmn_srv_t *, mmn_srv_xpoint_pin_t, bool);
 
 typedef void (*mmn_srv_state_machine_cb_t)(mmn_srv_socket_t *);
 
@@ -37,6 +51,11 @@ typedef struct {
 	mmn_srv_isr_set_transfer_done_cb_t set_trn_done;
 	mmn_srv_isr_get_transfer_done_cb_t get_trn_done;
 	mbb_srv_cbs_t pin_cbs;
+	mmn_srv_set_crosspoint_command_cb_t set_xpoint;
+	mmn_srv_get_crosspoint_command_cb_t get_xpoint;
+	mmn_srv_set_crosspoint_command_done_cb_t set_xpoint_done;
+	mmn_srv_get_crosspoint_command_done_cb_t get_xpoint_done;
+	mmn_srv_xpoint_pin_write_cb_t xpoint_pin_write;
 } mmn_srv_cbs_t;
 
 typedef struct {
@@ -49,6 +68,12 @@ typedef struct {
 	uint8_t interests;
 	uint8_t ready;
 } mmn_srv_flags_t;
+
+typedef struct {
+	uint32_t command;
+	uint8_t progress;
+	uint8_t bits_left;
+}mmn_srv_xpoint_isr_ctx_t ;
 
 struct mmn_srv_socket_t {
 	// const (shared with isr)
@@ -130,6 +155,13 @@ struct mmn_srv_socket_t {
 		struct {
 			uint8_t req_12_state_event_data[3];
 		};
+		struct {
+			struct {
+				uint8_t input;
+				uint8_t output;
+				uint8_t pin_info;
+			} req_13_state_xpoint_data;
+		};
 	};
 };
 
@@ -150,6 +182,8 @@ struct mmn_srv_t {
 	uint8_t socket_count;
 	uint8_t token_counter;
 	uint8_t buf_size;
+	bool crosspoint_is_transferring;
+	mmn_srv_xpoint_isr_ctx_t xpoint_isr_ctx;
 	uint8_t * bufs;
 	mmn_srv_flags_t * flags;
 	const mmn_srv_cbs_t * cbs;

@@ -7,7 +7,8 @@
 typedef enum {
 	MMN_SRV_BLOCKED_ON_FAULT = 0,
 	MMN_SRV_BLOCKED_ON_TRANSFER,
-	MMN_SRV_BLOCKED_ON_POLL
+	MMN_SRV_BLOCKED_ON_POLL,
+	MMN_SRV_BLOCKED_ON_XPOINT
 } mmn_srv_blocked_on_t;
 
 typedef enum {
@@ -16,6 +17,13 @@ typedef enum {
 	MMN_SRV_OP_LOCK_READ,
 	MMN_SRV_OP_LOCK_POLL
 } mmn_srv_op_lock_t;
+
+static uint32_t bits_needed_to_represent_value(uint32_t value)
+{
+	uint32_t y = 1;
+	while(value >>= 1) y++;
+	return y;
+}
 
 static mmn_srv_t * srv_from_soc(mmn_srv_socket_t * soc)
 {
@@ -64,13 +72,18 @@ static void transfer(mmn_srv_socket_t * soc, mbb_srv_transfer_t trn, mmn_srv_sta
 	block_on(soc, MMN_SRV_BLOCKED_ON_TRANSFER, then_cb);
 }
 
-static void read_state_cb(mmn_srv_socket_t * soc)
+static void read_1_state(mmn_srv_socket_t * soc);
+static void read_1_state_cb(mmn_srv_socket_t * soc)
+{
+	read_1_state(soc);
+}
+static void read_1_state(mmn_srv_socket_t * soc)
 {
 	if(soc->state_read_i > 0) {
 		*(soc->state_read_dst++) = soc->read_byte;
 	}
 	if(soc->state_read_i < soc->state_read_len) {
-		transfer(soc, MBB_SRV_BYTE_TRANSFER_READ, read_state_cb);
+		transfer(soc, MBB_SRV_BYTE_TRANSFER_READ, read_1_state_cb);
 		soc->state_read_i += 1;
 	} else {
 		soc->state_read_then_cb(soc);
@@ -82,13 +95,18 @@ static void read_state(mmn_srv_socket_t * soc, size_t len, uint8_t * dst, mmn_sr
 	soc->state_read_dst = dst;
 	soc->state_read_i = 0;
 	soc->state_read_len = len;
-	read_state_cb(soc);
+	read_1_state(soc);
 }
 
-static void write_state_cb(mmn_srv_socket_t * soc)
+static void write_1_state(mmn_srv_socket_t * soc);
+static void write_1_state_cb(mmn_srv_socket_t * soc)
+{
+	write_1_state(soc);
+}
+static void write_1_state(mmn_srv_socket_t * soc)
 {
 	if(soc->state_write_i < soc->state_write_len) {
-		transfer(soc, soc->state_write_src[soc->state_write_i], write_state_cb);
+		transfer(soc, soc->state_write_src[soc->state_write_i], write_1_state_cb);
 		soc->state_write_i += 1;
 	} else {
 		soc->state_write_then_cb(soc);
@@ -100,7 +118,7 @@ static void write_state(mmn_srv_socket_t * soc, size_t len, const uint8_t * src,
 	soc->state_write_src = src;
 	soc->state_write_i = 0;
 	soc->state_write_len = len;
-	write_state_cb(soc);
+	write_1_state(soc);
 }
 
 static void poll_state(mmn_srv_socket_t * soc, mmn_srv_state_machine_cb_t then_cb)
@@ -109,6 +127,13 @@ static void poll_state(mmn_srv_socket_t * soc, mmn_srv_state_machine_cb_t then_c
 	mmn_srv_session_t * sess = &srv->memb[soc->token].sess;
 	sess->poll_blocked = true;
 	block_on(soc, MMN_SRV_BLOCKED_ON_POLL, then_cb);
+}
+
+static void crosspoint_state(mmn_srv_socket_t * soc, uint32_t transfer_data, mmn_srv_state_machine_cb_t then_cb)
+{
+	mmn_srv_t * srv = srv_from_soc(soc);
+	srv->cbs->set_xpoint(srv, transfer_data);
+	block_on(soc, MMN_SRV_BLOCKED_ON_XPOINT, then_cb);
 }
 
 static bool time_is_up(mmn_srv_socket_t * soc)
@@ -153,6 +178,46 @@ static void poll_notify(mmn_srv_t * srv, uint8_t session)
 }
 
 static void req_3_state(mmn_srv_socket_t * soc);
+
+static void req_14_state_cb(mmn_srv_socket_t * soc)
+{
+	mmn_srv_t * srv = srv_from_soc(soc);
+	srv->crosspoint_is_transferring = false;
+	req_3_state(soc);
+}
+static void req_14_state(mmn_srv_socket_t * soc)
+{
+	mmn_srv_t * srv = srv_from_soc(soc);
+	bool enable = soc->req_13_state_xpoint_data.pin_info & 0x01;
+	soc->req_13_state_xpoint_data.pin_info >>= 1;
+	uint32_t output_index = (soc->req_13_state_xpoint_data.output << 2)
+							| (soc->req_13_state_xpoint_data.pin_info & 0x03);
+	uint32_t input_idx = 0;
+	if(soc->req_13_state_xpoint_data.input != 255) {
+		soc->req_13_state_xpoint_data.pin_info >>= 2;
+		input_idx = ((soc->req_13_state_xpoint_data.input << 2)
+						| (soc->req_13_state_xpoint_data.pin_info & 0x03))
+					+ 1;
+	}
+	uint32_t edge_point_count = 4 * srv->socket_count;
+	uint32_t transfer_data = (edge_point_count + 1) * output_index + input_idx;
+	if(enable) {
+		transfer_data |= 1 << bits_needed_to_represent_value((edge_point_count + 1) * edge_point_count - 1);
+	}
+	crosspoint_state(soc, transfer_data, req_14_state_cb);
+}
+
+static void req_13_state_cb(mmn_srv_socket_t * soc)
+{
+	req_14_state(soc);
+}
+static void req_13_state(mmn_srv_socket_t * soc)
+{
+	mmn_srv_t * srv = srv_from_soc(soc);
+	if(srv->crosspoint_is_transferring) return;
+	srv->crosspoint_is_transferring = true;
+	read_state(soc, sizeof(soc->req_13_state_xpoint_data), (uint8_t *) &soc->req_13_state_xpoint_data, req_13_state_cb);
+}
 
 static void req_12_state(mmn_srv_socket_t * soc);
 static void req_12_state_cb(mmn_srv_socket_t * soc)
@@ -378,6 +443,9 @@ static void req_3_state_cb(mmn_srv_socket_t * soc)
 	else if(soc->req_3_state_op == MMN_SRV_OPCODE_POLL) {
 		req_11_state(soc);
 	}
+	else if(soc->req_3_state_op == MMN_SRV_OPCODE_CROSSPOINT) {
+		req_13_state(soc);
+	}
 }
 static void req_3_state(mmn_srv_socket_t * soc)
 {
@@ -422,6 +490,8 @@ void mmn_srv_init(
 	srv->socket_count = socket_count;
 	srv->token_counter = 0;
 	srv->buf_size = buf_size;
+	srv->crosspoint_is_transferring = false;
+	srv->xpoint_isr_ctx.progress = 0;
 	srv->bufs = aux_memory;
 	srv->flags = (mmn_srv_flags_t *) aux_memory + ((sizeof(mmn_srv_buf_t) + buf_size) * socket_count * socket_count);
 	srv->cbs = cbs;
@@ -476,6 +546,42 @@ void mmn_srv_timer_isr_handler(mmn_srv_t * srv)
 			srv->cbs->set_trn_done(soc->ctx, mbb_srv_get_read_byte(&soc->bb));
 		}
 	}
+
+	switch (srv->xpoint_isr_ctx.progress) {
+		case 0:
+			srv->cbs->xpoint_pin_write(srv, MMN_SRV_XPOINT_PIN_CLK, false);
+			srv->cbs->xpoint_pin_write(srv, MMN_SRV_XPOINT_PIN_CLEAR, true);
+			srv->xpoint_isr_ctx.progress += 1;
+			break;
+		case 1:
+			srv->cbs->xpoint_pin_write(srv, MMN_SRV_XPOINT_PIN_CLK, true);
+			srv->xpoint_isr_ctx.progress += 1;
+			break;
+		case 2: {
+			if(!srv->cbs->get_xpoint(srv, &srv->xpoint_isr_ctx.command)) break;
+			srv->cbs->xpoint_pin_write(srv, MMN_SRV_XPOINT_PIN_CLEAR, false);
+			uint32_t edge_point_count = 4 * srv->socket_count;
+			srv->xpoint_isr_ctx.bits_left = bits_needed_to_represent_value((edge_point_count + 1) * edge_point_count - 1) + 1;
+			srv->xpoint_isr_ctx.progress += 1;
+			/* fallthrough */
+		}
+		case 3:
+			srv->cbs->xpoint_pin_write(srv, MMN_SRV_XPOINT_PIN_CLK, false);
+			srv->cbs->xpoint_pin_write(srv, MMN_SRV_XPOINT_PIN_DAT, srv->xpoint_isr_ctx.command & 1);
+			srv->xpoint_isr_ctx.command >>= 1;
+			srv->xpoint_isr_ctx.bits_left -= 1;
+			srv->xpoint_isr_ctx.progress += 1;
+			break;
+		case 4:
+			srv->cbs->xpoint_pin_write(srv, MMN_SRV_XPOINT_PIN_CLK, true);
+			if(srv->xpoint_isr_ctx.bits_left) {
+				srv->xpoint_isr_ctx.progress = 3;
+			} else {
+				srv->cbs->set_xpoint_done(srv);
+				srv->xpoint_isr_ctx.progress = 0;
+			}
+			break;
+	}
 }
 
 void mmn_srv_main_loop_handler(mmn_srv_t * srv)
@@ -493,6 +599,9 @@ void mmn_srv_main_loop_handler(mmn_srv_t * srv)
 				case MMN_SRV_BLOCKED_ON_POLL:
 					if(srv->memb[soc->token].sess.poll_blocked && !time_is_up(soc)) continue;
 					srv->memb[soc->token].sess.poll_blocked = false;
+					break;
+				case MMN_SRV_BLOCKED_ON_XPOINT:
+					if(!srv->cbs->get_xpoint_done(srv)) continue;
 					break;
 				default:
 					continue;
