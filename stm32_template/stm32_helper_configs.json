@@ -1,0 +1,10 @@
+{
+    "imports": [
+        "."
+    ],
+    "project_name": "stm32cubemx",
+    "pyocd_target": "STM32C011J4Mx",
+    "pyocd_args": [
+        "--frequency", "7500"
+    ]
+}
