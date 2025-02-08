@@ -179,6 +179,15 @@ static void poll_notify(mmn_srv_t * srv, uint8_t session)
 
 static void req_3_state(mmn_srv_socket_t * soc);
 
+static void req_15_state_cb(mmn_srv_socket_t * soc)
+{
+	req_3_state(soc);
+}
+static void req_15_state(mmn_srv_socket_t * soc)
+{
+	write_state(soc, 1, &soc->index, req_15_state_cb);
+}
+
 static void req_14_state_cb(mmn_srv_socket_t * soc)
 {
 	mmn_srv_t * srv = srv_from_soc(soc);
@@ -445,6 +454,9 @@ static void req_3_state_cb(mmn_srv_socket_t * soc)
 	}
 	else if(soc->req_3_state_op == MMN_SRV_OPCODE_CROSSPOINT) {
 		req_13_state(soc);
+	}
+	else if(soc->req_3_state_op == MMN_SRV_OPCODE_WHEREAMI) {
+		req_15_state(soc);
 	}
 }
 static void req_3_state(mmn_srv_socket_t * soc)

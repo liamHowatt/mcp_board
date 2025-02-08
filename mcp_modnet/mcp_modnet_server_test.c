@@ -320,6 +320,12 @@ int main()
     sim_eval(srv.sim);
     for(int i = 1; i < 48; i++) assert(sim_output_pin_check(srv.sim, i) == (i == 0 || i == 9 || i == 4 * 4 + 3));
 
+    buf[0] = MMN_SRV_OPCODE_WHEREAMI;
+    test_write(&srv.srv, ctxs, 3, buf, 1);
+    buf[0] = 0;
+    test_read(&srv.srv, ctxs, 3, buf, 1);
+    assert(buf[0] == 3);
+
     sim_destroy(srv.sim);
 }
 
