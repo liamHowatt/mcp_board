@@ -1,0 +1,7 @@
+{
+    "imports": [
+        "."
+    ],
+    "project_name": "stm32cubemx",
+    "pyocd_target": "stm32g070cbtx"
+}
