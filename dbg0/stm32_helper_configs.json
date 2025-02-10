@@ -1,0 +1,14 @@
+{
+    "imports": [
+        "."
+    ],
+    "single_source_file_imports": [
+        "../mcp_bitbang/mcp_bitbang_client.c"
+    ],
+    "project_name": "stm32cubemx",
+    "pyocd_target": "STM32C011J4Mx",
+    "pyocd_args": [
+        "--frequency", "7500",
+        "--probe", "E660D4A0A78EA437"
+    ]
+}

@@ -95,6 +95,7 @@ def main():
 
         cfg = get_cfg()
         imports = cfg.get("imports", ())
+        single_source_file_imports = cfg.get("single_source_file_imports", ())
         excludes = set(cfg.get("excludes", ()))
         with open(makefile_path, "w") as f:
             parts = makefile.partition("C_SOURCES =  \\\n")
@@ -107,6 +108,11 @@ def main():
                 for lib
                 in imports
             )))
+            f.write("".join(
+                posixpath.join("..", file) + " \\\n"
+                for file
+                in single_source_file_imports
+            ))
             parts = parts[2].partition("# CFLAGS\n#######################################\n")
             assert parts[1]
             f.write(parts[0])

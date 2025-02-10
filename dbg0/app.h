@@ -4,7 +4,7 @@
 
 void app_main(void);
 
-#define DBG_UART huart2
+#define DBG_UART huart1
 #ifdef DBG_UART
 extern UART_HandleTypeDef DBG_UART;
 extern char logln_buf[256];
@@ -15,6 +15,3 @@ extern char logln_buf[256];
 #else
 #define LOGLN(format, ...)
 #endif
-
-#define INTERRUPTER_TIMER htim3
-extern TIM_HandleTypeDef INTERRUPTER_TIMER;

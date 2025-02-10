@@ -2,6 +2,13 @@
     "imports": [
         "."
     ],
+    "single_source_file_imports": [
+        "../mcp_bitbang/mcp_bitbang_server.c",
+        "../mcp_modnet/mcp_modnet_server.c"
+    ],
     "project_name": "stm32cubemx",
-    "pyocd_target": "stm32g070cbtx"
+    "pyocd_target": "stm32g070cbtx",
+    "pyocd_args": [
+        "--probe", "E6613008E3424F2E"
+    ]
 }

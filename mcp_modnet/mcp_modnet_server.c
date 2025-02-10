@@ -505,7 +505,8 @@ void mmn_srv_init(
 	srv->crosspoint_is_transferring = false;
 	srv->xpoint_isr_ctx.progress = 0;
 	srv->bufs = aux_memory;
-	srv->flags = (mmn_srv_flags_t *) aux_memory + ((sizeof(mmn_srv_buf_t) + buf_size) * socket_count * socket_count);
+	uint8_t * flags_memory = aux_memory + ((sizeof(mmn_srv_buf_t) + buf_size) * socket_count * socket_count);
+	srv->flags = (mmn_srv_flags_t *) flags_memory;
 	srv->cbs = cbs;
 
 	for(uint8_t i = 0; i < socket_count; i++) {

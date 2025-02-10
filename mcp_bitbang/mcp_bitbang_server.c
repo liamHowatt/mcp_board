@@ -41,12 +41,12 @@ bool mbb_srv_continue_byte_transfer(mbb_srv_t * mbb)
     bool ret = false;
     switch(mbb->bit_progress) {
         case 0:
-            if(mbb->is_read) mbb->cbs->write(mbb->caller_ctx, !mbb->clk_pin, 1);
             mbb->cbs->write(mbb->caller_ctx, mbb->clk_pin, 1);
             mbb->bit_progress += 1;
             break;
         case 1:
             if(0 != mbb->cbs->read(mbb->caller_ctx, mbb->clk_pin)) {
+                if(mbb->is_read) mbb->cbs->write(mbb->caller_ctx, !mbb->clk_pin, 1);
                 mbb->bit_progress += 1;
             }
             break;
