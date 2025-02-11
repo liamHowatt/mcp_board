@@ -151,20 +151,20 @@ static void test_read(mmn_srv_t * srv, ctx_t * ctxs, uint8_t socket, uint8_t * d
 
 int main()
 {
-    test_srv_t srv;
+    static test_srv_t srv;
     srv.xpoint_is_transferring = false;
 
     srv.sim = sim_create();
     sim_eval(srv.sim);
 
-    uint8_t aux_memory[MMN_SRV_AUX_MEMORY_SIZE(SOCKET_COUNT, BUF_SIZE)];
+    static uint8_t aux_memory[MMN_SRV_AUX_MEMORY_SIZE(SOCKET_COUNT, BUF_SIZE)];
     mmn_srv_init(&srv.srv, SOCKET_COUNT, BUF_SIZE, aux_memory, &cbs);
-    ctx_t ctxs[SOCKET_COUNT] = {0};
+    static ctx_t ctxs[SOCKET_COUNT] = {0};
     for(uint8_t i = 0; i < SOCKET_COUNT; i++) {
         mmn_srv_member_init(&srv.srv, &srv.memb[i], i, &ctxs[i]);
     }
 
-    uint8_t buf[32];
+    static uint8_t buf[32];
 
     buf[0] = 255;
     test_write(&srv.srv, ctxs, 3, buf, 1);
