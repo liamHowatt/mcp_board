@@ -1,3 +1,5 @@
 *.asc
 *.json
 *.bin
+crosspoint_bin_compressed
+crosspoint_bin_compressed.c

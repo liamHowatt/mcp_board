@@ -1,0 +1,15 @@
+{
+    "imports": [
+        "."
+    ],
+    "single_source_file_imports": [
+        "../mcp_crosspoint/crosspoint_bin_compressed.c",
+        "heatshrink/heatshrink_decoder.c"
+    ],
+    "additional_cflags": "-DHEATSHRINK_DYNAMIC_ALLOC=0",
+    "project_name": "stm32cubemx",
+    "pyocd_target": "stm32g070cbtx",
+    "pyocd_args": [
+        "--probe", "E6613008E3424F2E"
+    ]
+}

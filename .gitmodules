@@ -1,0 +1,3 @@
+[submodule "base_fpga_flasher/heatshrink"]
+	path = base_fpga_flasher/heatshrink
+	url = https://github.com/atomicobject/heatshrink.git
