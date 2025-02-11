@@ -10,3 +10,6 @@ crosspoint_bin_compressed: crosspoint.bin
 crosspoint_bin_compressed.c: crosspoint_bin_compressed
 	echo -n 'const ' > crosspoint_bin_compressed.c
 	xxd -i crosspoint_bin_compressed >> crosspoint_bin_compressed.c
+
+sum: crosspoint.bin
+	python3 -c 'print("sum:", sum(open("crosspoint.bin", "rb").read()))'
