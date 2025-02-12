@@ -11,6 +11,9 @@ char logln_buf[256];
 #include <stdbool.h>
 #include <assert.h>
 
+#define CRESET_B GPIOF, GPIO_PIN_0
+#define CDONE    GPIOC, GPIO_PIN_15
+
 #define SOCKET_COUNT 12
 #define BUF_SIZE     192
 
@@ -190,9 +193,9 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 }
 
 void app_main(void) {
-    LOGLN("start");
+    LOGLN("start base");
 
-    HAL_Delay(4000);
+    HAL_GPIO_WritePin(CRESET_B, 1);
 
     static uint8_t aux_memory[MMN_SRV_AUX_MEMORY_SIZE(SOCKET_COUNT, BUF_SIZE)];
     static ctx_t ctxs[SOCKET_COUNT];
@@ -202,8 +205,11 @@ void app_main(void) {
         mmn_srv_member_init(&g_srv.srv, &g_srv.memb[i], i, &ctxs[i]);
     }
 
-    __DMB();
+    while(!HAL_GPIO_ReadPin(CDONE));
+    HAL_Delay(2);
 
+    LOGLN("starting timer");
+    __DMB();
     HAL_TIM_Base_Start_IT(&INTERRUPTER_TIMER);
 
     while(1) {
