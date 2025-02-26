@@ -18,10 +18,13 @@ void mbb_cli_start_byte_transfer(mbb_cli_t * mbb, mbb_cli_transfer_t transfer)
 
 mbb_cli_status_t mbb_cli_continue_byte_transfer(mbb_cli_t * mbb)
 {
-    if(mbb->byte_progress >= 8) return MBB_CLI_STATUS_DONE;
     mbb_cli_status_t ret = MBB_CLI_STATUS_INVALID;
     switch(mbb->bit_progress) {
         case 0:
+            if(mbb->byte_progress >= 8) {
+                ret = MBB_CLI_STATUS_DONE;
+                break;
+            }
             mbb->write_cb(mbb->caller_ctx, MBB_CLI_PIN_CLK, 1);
             if(0 == mbb->read_cb(mbb->caller_ctx, MBB_CLI_PIN_CLK)) {
                 ret = MBB_CLI_STATUS_WAIT_CLK_PIN_HIGH;
@@ -41,12 +44,7 @@ mbb_cli_status_t mbb_cli_continue_byte_transfer(mbb_cli_t * mbb)
             mbb->data_in = (mbb->data_in << 1) | mbb->read_cb(mbb->caller_ctx, MBB_CLI_PIN_DAT);
             mbb->write_cb(mbb->caller_ctx, MBB_CLI_PIN_CLK, 1);
             mbb->byte_progress += 1;
-            if(mbb->byte_progress >= 8) {
-                ret = MBB_CLI_STATUS_DONE;
-            }
-            else {
-                ret = MBB_CLI_STATUS_DO_DELAY_AND_WAIT_CLK_PIN_HIGH;
-            }
+            ret = MBB_CLI_STATUS_WAIT_CLK_PIN_HIGH;
             mbb->bit_progress = 0;
             break;
     }
