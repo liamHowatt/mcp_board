@@ -59,6 +59,53 @@ static void do_write(mbb_cli_t * cli, uint8_t data)
     run_transfer(cli);
 }
 
+static void handle_protocols(mbb_cli_t * cli)
+{
+    while(1) {
+        do_write(cli, 3); // poll
+        do_write(cli, 0); // timeout is 0
+        uint8_t flags = do_read(cli);
+
+        if(!flags) return;
+
+        uint8_t token_count = 0;
+        bool has_readable = false;
+        uint8_t readable_token;
+
+        if(flags & 0x4) {
+            token_count = do_read(cli);
+        }
+        if(flags & 0x1) {
+            has_readable = true;
+            readable_token = do_read(cli);
+        }
+
+        for(uint8_t i = 0; i < token_count; i++) {
+            do_write(cli, 2); // set interest
+            do_write(cli, i); // token
+            do_write(cli, 0x1); // interested in reading
+        }
+
+        if(has_readable) {
+            while(1) {
+                do_write(cli, 1); // read
+                do_write(cli, 1); // read 1 protocol byte
+                do_write(cli, readable_token); // recv from token
+                uint8_t readable_count = do_read(cli);
+                if(!readable_count) break;
+                do_read(cli); // read the protocol
+
+                do_write(cli, 0); // write
+                do_write(cli, 1); // reponse is 1 byte
+                do_write(cli, readable_token); // send to token
+                uint8_t free_space = do_read(cli);
+                assert(free_space >= 1);
+                do_write(cli, 1); // whatever it is, we don't support it
+            }
+        }
+    }
+}
+
 void app_main(void) {
     LOGLN("start dbg0");
 
@@ -112,21 +159,22 @@ void app_main(void) {
     while (1) {
         for(int i = 0; i < 4; i++) {
             uint8_t pin = i << 1;
-            do_write(&cli, 4); // crosspoint
-            do_write(&cli, 255); // constant 1
-            do_write(&cli, where); // set own output
-            do_write(&cli, pin | 1); // enable
-            HAL_Delay(200);
-            do_write(&cli, 4); // crosspoint
-            do_write(&cli, 255); // constant 1
-            do_write(&cli, where); // set own output
-            do_write(&cli, pin); // disable
+            for(int j = 0; j < 2; j++) {
+
+                handle_protocols(&cli);
+
+                do_write(&cli, 4); // crosspoint
+                do_write(&cli, 255); // constant 1
+                do_write(&cli, where); // set own output
+                do_write(&cli, pin | 1); // enable
+
+                handle_protocols(&cli);
+
+                do_write(&cli, 4); // crosspoint
+                do_write(&cli, 255); // constant 1
+                do_write(&cli, where); // set own output
+                do_write(&cli, pin); // disable
+            }
         }
     }
-
-    // unsigned x = 0;
-    // while(1) {
-    //     LOGLN("===%u???", x++);
-    //     HAL_Delay(100);
-    // }
 }
