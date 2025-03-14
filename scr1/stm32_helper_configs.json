@@ -1,0 +1,12 @@
+{
+    "imports": [
+        "."
+    ],
+    "single_source_file_imports": [
+    ],
+    "project_name": "stm32cubemx",
+    "pyocd_target": "STM32G030F6Px",
+    "pyocd_args": [
+        "--frequency", "7500"
+    ]
+}
