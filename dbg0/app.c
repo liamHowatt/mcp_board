@@ -37,9 +37,6 @@ static void run_transfer(mbb_cli_t * cli)
             case MBB_CLI_STATUS_DO_DELAY:
                 HAL_Delay(2);
                 break;
-            case MBB_CLI_STATUS_DO_DELAY_AND_WAIT_CLK_PIN_HIGH:
-                HAL_Delay(2);
-                /* fallthrough */
             case MBB_CLI_STATUS_WAIT_CLK_PIN_HIGH:
                 while(!read_cb(NULL, MBB_CLI_PIN_CLK));
                 break;
