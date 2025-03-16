@@ -13,9 +13,9 @@ typedef struct {
 } ctx_t;
 
 typedef struct {
-    ctx_t * ctx;
+    ctx_t ctx;
     uint8_t token;
-} file_list_writer_t;
+} cwt_t;
 
 static void run1(ctx_t * ctx)
 {
@@ -47,77 +47,77 @@ static void write1(ctx_t * ctx, uint8_t data)
     run1(ctx);
 }
 
-static uint32_t begin_read_or_write(ctx_t * ctx, bool is_read, uint8_t peer, uint32_t size)
+static uint32_t begin_read_or_write(cwt_t * cwt, bool is_read, uint32_t size)
 {
-    write1(ctx, is_read);
-    write1(ctx, MIN(size, 255));
-    write1(ctx, peer);
-    uint32_t internal_buffer_size = read1(ctx);
+    write1(&cwt->ctx, is_read);
+    write1(&cwt->ctx, MIN(size, 255));
+    write1(&cwt->ctx, cwt->token);
+    uint32_t internal_buffer_size = read1(&cwt->ctx);
     return MIN(size, internal_buffer_size);
 }
 
-static void peer_read(ctx_t * ctx, uint8_t peer, void * dst, uint32_t size)
+static void peer_read(cwt_t * cwt, void * dst, uint32_t size)
 {
     uint8_t * dstu8 = dst;
     while(size) {
-        uint32_t readable_count = begin_read_or_write(ctx, true, peer, size);
+        uint32_t readable_count = begin_read_or_write(cwt, true, size);
         size -= readable_count;
         while(readable_count--) {
-            *dstu8++ = read1(ctx);
+            *dstu8++ = read1(&cwt->ctx);
         }
     }
 }
 
-static void peer_write(ctx_t * ctx, uint8_t peer, const void * src, uint32_t size)
+static void peer_write(cwt_t * cwt, const void * src, uint32_t size)
 {
     const uint8_t * srcu8 = src;
     while(size) {
-        uint32_t free_space = begin_read_or_write(ctx, false, peer, size);
+        uint32_t free_space = begin_read_or_write(cwt, false, size);
         size -= free_space;
         while(free_space--) {
-            write1(ctx, *srcu8++);
+            write1(&cwt->ctx, *srcu8++);
         }
     }
 }
 
-static void peer_write_zeros(ctx_t * ctx, uint8_t peer, uint32_t count)
+static void peer_write_zeros(cwt_t * cwt, uint32_t count)
 {
     while(count) {
-        uint32_t free_space = begin_read_or_write(ctx, false, peer, count);
+        uint32_t free_space = begin_read_or_write(cwt, false, count);
         count -= free_space;
         while(free_space--) {
-            write1(ctx, 0);
+            write1(&cwt->ctx, 0);
         }
     }
 }
 
-static void peer_read_null(ctx_t * ctx, uint8_t peer, uint32_t count)
+static void peer_read_null(cwt_t * cwt, uint32_t count)
 {
     while(count) {
-        uint32_t readable_count = begin_read_or_write(ctx, true, peer, count);
+        uint32_t readable_count = begin_read_or_write(cwt, true, count);
         count -= readable_count;
         while(readable_count--) {
-            read1(ctx);
+            read1(&cwt->ctx);
         }
     }
 }
 
-static uint8_t peer_read1(ctx_t * ctx, uint8_t peer)
+static uint8_t peer_read1(cwt_t * cwt)
 {
     uint8_t b;
-    peer_read(ctx, peer, &b, 1);
+    peer_read(cwt, &b, 1);
     return b;
 }
 
-static void peer_write1(ctx_t * ctx, uint8_t peer, uint8_t b)
+static void peer_write1(cwt_t * cwt, uint8_t b)
 {
-    peer_write(ctx, peer, &b, 1);
+    peer_write(cwt, &b, 1);
 }
 
-static int try_peer_read1(ctx_t * ctx, uint8_t peer)
+static int try_peer_read1(cwt_t * cwt)
 {
-    if(0 == begin_read_or_write(ctx, true, peer, 1)) return -1;
-    return read1(ctx);
+    if(0 == begin_read_or_write(cwt, true, 1)) return -1;
+    return read1(&cwt->ctx);
 }
 
 static void file_list_counter(void * vctx, const char * fname)
@@ -128,8 +128,8 @@ static void file_list_counter(void * vctx, const char * fname)
 
 static void file_list_writer(void * vctx, const char * fname)
 {
-    file_list_writer_t * flw = vctx;
-    peer_write(flw->ctx, flw->token, fname, strlen(fname) + 1);
+    cwt_t * cwt = vctx;
+    peer_write(cwt, fname, strlen(fname) + 1);
 }
 
 void mcp_module_run(
@@ -156,48 +156,47 @@ void mcp_module_run(
     bb_write_cb(uctx, MBB_CLI_PIN_CLK, 1);
     delay_us_cb(uctx, 500);
 
-    ctx_t ctx;
+    cwt_t cwt;
 
-    mbb_cli_init(&ctx.bb, bb_read_cb, bb_write_cb, uctx);
-    ctx.uctx = uctx;
-    ctx.delay_us_cb = delay_us_cb;
-    ctx.wait_clk_high_cb = wait_clk_high_cb;
+    mbb_cli_init(&cwt.ctx.bb, bb_read_cb, bb_write_cb, uctx);
+    cwt.ctx.uctx = uctx;
+    cwt.ctx.delay_us_cb = delay_us_cb;
+    cwt.ctx.wait_clk_high_cb = wait_clk_high_cb;
 
-    write1(&ctx, 255);
-    read1(&ctx); // read our token
+    write1(&cwt.ctx, 255);
+    read1(&cwt.ctx); // read our token
 
     while(1) {
-        write1(&ctx, 3); // poll
-        write1(&ctx, 255); // delay forever
-        uint8_t flags = read1(&ctx);
+        write1(&cwt.ctx, 3); // poll
+        write1(&cwt.ctx, 255); // delay forever
+        uint8_t flags = read1(&cwt.ctx);
 
         assert(flags);
 
         uint8_t token_count = 0;
         bool has_readable = false;
-        uint8_t token = 255;
 
         if(flags & 0x4) {
-            token_count = read1(&ctx);
+            token_count = read1(&cwt.ctx);
         }
         if(flags & 0x1) {
             has_readable = true;
-            token = read1(&ctx);
+            cwt.token = read1(&cwt.ctx);
         }
 
         for(uint8_t i = 0; i < token_count; i++) {
-            write1(&ctx, 2); // set interest
-            write1(&ctx, i); // token
-            write1(&ctx, 0x1); // interested in reading
+            write1(&cwt.ctx, 2); // set interest
+            write1(&cwt.ctx, i); // token
+            write1(&cwt.ctx, 0x1); // interested in reading
         }
 
         if(!has_readable) continue;
 
         int protocol;
-        while((protocol = try_peer_read1(&ctx, token)) >= 0) {
+        while((protocol = try_peer_read1(&cwt)) >= 0) {
             if(protocol == 0) { // file protocol
-                peer_write1(&ctx, token, 0); // we support it
-                uint8_t action = peer_read1(&ctx, token);
+                peer_write1(&cwt, 0); // we support it
+                uint8_t action = peer_read1(&cwt);
                 char fname[256];
                 if(action == 2) { // list
                     uint32_t fname_byte_count = 0;
@@ -205,19 +204,18 @@ void mcp_module_run(
                         fname_byte_count += strlen(static_file_table[i].name) + 1;
                     if(rw_fs_vtable)
                         rw_fs_vtable->list(rw_fs_ctx, &fname_byte_count, file_list_counter);
-                    peer_write(&ctx, token, &fname_byte_count, sizeof(fname_byte_count));
+                    peer_write(&cwt, &fname_byte_count, sizeof(fname_byte_count));
                     for(uint32_t i = 0; i < static_file_table_size; i++)
-                        peer_write(&ctx, token, static_file_table[i].name, strlen(static_file_table[i].name) + 1);
+                        peer_write(&cwt, static_file_table[i].name, strlen(static_file_table[i].name) + 1);
                     if(rw_fs_vtable) {
-                        file_list_writer_t flw = {.ctx = &ctx, .token = token};
-                        rw_fs_vtable->list(rw_fs_ctx, &flw, file_list_writer);
+                        rw_fs_vtable->list(rw_fs_ctx, &cwt, file_list_writer);
                     }
                 }
                 else if (action == 0 || action == 1) { // write or read
                     uint8_t buf[256];
 
-                    uint8_t fname_len = peer_read1(&ctx, token);
-                    peer_read(&ctx, token, fname, fname_len);
+                    uint8_t fname_len = peer_read1(&cwt);
+                    peer_read(&cwt, fname, fname_len);
                     fname[fname_len] = '\0';
 
                     uint32_t i;
@@ -225,28 +223,28 @@ void mcp_module_run(
                         if(0 == strcmp(fname, static_file_table[i].name)) break;
                     if(i < static_file_table_size) {
                         if(action == 0) { // write not allowed on static file
-                            peer_write1(&ctx, token, 2); // EACCES
+                            peer_write1(&cwt, 2); // EACCES
                             continue;
                         }
-                        peer_write1(&ctx, token, 0); // OK
+                        peer_write1(&cwt, 0); // OK
                         const mcp_module_static_file_table_entry_t * entry = static_file_table + i;
                         const uint8_t * content_u8 = entry->content;
                         uint32_t remain = entry->content_size;
                         while(1) {
-                            uint8_t sub_action = peer_read1(&ctx, token);
+                            uint8_t sub_action = peer_read1(&cwt);
                             if(sub_action == 0) { // continue write or read
                                 uint32_t read_len;
-                                peer_read(&ctx, token, &read_len, 4);
+                                peer_read(&cwt, &read_len, 4);
                                 uint32_t actually_read = MIN(read_len, remain);
-                                peer_write(&ctx, token, &actually_read, 4);
-                                peer_write(&ctx, token, content_u8, actually_read);
-                                if(actually_read && actually_read < read_len) peer_write_zeros(&ctx, token, 5);
-                                else peer_write1(&ctx, token, 0); // OK
+                                peer_write(&cwt, &actually_read, 4);
+                                peer_write(&cwt, content_u8, actually_read);
+                                if(actually_read && actually_read < read_len) peer_write_zeros(&cwt, 5);
+                                else peer_write1(&cwt, 0); // OK
                                 content_u8 += actually_read;
                                 remain -= actually_read;
                             }
                             else if(sub_action == 1) { // close
-                                peer_write1(&ctx, token, 0); // OK
+                                peer_write1(&cwt, 0); // OK
                                 break;
                             }
                             else if(sub_action == 2) { // fstat
@@ -256,7 +254,7 @@ void mcp_module_run(
                                 memcpy(buf + 3, &entry->content_size, 4);
                                 uint16_t blksize = 1024;
                                 memcpy(buf + 7, &blksize, 2);
-                                peer_write(&ctx, token, buf, 9);
+                                peer_write(&cwt, buf, 9);
                             }
                             else assert(0);
                         }
@@ -264,37 +262,37 @@ void mcp_module_run(
                     }
 
                     if(!rw_fs_vtable) {
-                        peer_write1(&ctx, token, action ? MCP_MODULE_RW_FS_RESULT_ENOENT : 6); // read:ENOENT, write:EROFS
+                        peer_write1(&cwt, action ? MCP_MODULE_RW_FS_RESULT_ENOENT : 6); // read:ENOENT, write:EROFS
                         continue;
                     }
 
                     uint8_t fs_res = rw_fs_vtable->open(rw_fs_ctx, action, fname);
                     if(fs_res != MCP_MODULE_RW_FS_RESULT_OK) {
-                        peer_write1(&ctx, token, fs_res);
+                        peer_write1(&cwt, fs_res);
                         continue;
                     }
-                    peer_write1(&ctx, token, 0); // OK
+                    peer_write1(&cwt, 0); // OK
                     uint32_t file_pos = 0;
                     while(1) {
-                        uint8_t sub_action = peer_read1(&ctx, token);
+                        uint8_t sub_action = peer_read1(&cwt);
                         if(sub_action == 0) { // continue write or read
                             uint32_t remain;
-                            peer_read(&ctx, token, &remain, 4);
+                            peer_read(&cwt, &remain, 4);
                             if(action == 0) { // write
                                 if(fs_res) {
                                     fs_res = MCP_MODULE_RW_FS_RESULT_EIO;
                                 } else {
                                     while(remain) {
                                         uint32_t chunk = MIN(remain, 256);
-                                        peer_read(&ctx, token, buf, chunk);
+                                        peer_read(&cwt, buf, chunk);
                                         fs_res = rw_fs_vtable->write(rw_fs_ctx, buf, chunk);
                                         if(fs_res) break;
                                         remain -= chunk;
                                         file_pos += chunk;
                                     }
                                 }
-                                peer_read_null(&ctx, token, remain);
-                                peer_write1(&ctx, token, fs_res);
+                                peer_read_null(&cwt, remain);
+                                peer_write1(&cwt, fs_res);
                             }
                             else { // read
                                 bool zero_chunk_sent = false;
@@ -306,8 +304,8 @@ void mcp_module_run(
                                         uint32_t actually_read;
                                         fs_res = rw_fs_vtable->read(rw_fs_ctx, buf, try, &actually_read);
                                         if(fs_res) break;
-                                        peer_write(&ctx, token, &actually_read, 4);
-                                        peer_write(&ctx, token, buf, actually_read);
+                                        peer_write(&cwt, &actually_read, 4);
+                                        peer_write(&cwt, buf, actually_read);
                                         remain -= actually_read;
                                         file_pos += actually_read;
                                         if(actually_read < try) {
@@ -317,16 +315,16 @@ void mcp_module_run(
                                     }
                                 }
                                 if(!zero_chunk_sent && remain) {
-                                    peer_write_zeros(&ctx, token, 4);
+                                    peer_write_zeros(&cwt, 4);
                                 }
-                                peer_write1(&ctx, token, fs_res);
+                                peer_write1(&cwt, fs_res);
                             }
                         }
                         else if(sub_action == 1) { // close
                             if(!fs_res) {
-                                peer_write1(&ctx, token, rw_fs_vtable->close(rw_fs_ctx));
+                                peer_write1(&cwt, rw_fs_vtable->close(rw_fs_ctx));
                             } else {
-                                peer_write1(&ctx, token, 0);
+                                peer_write1(&cwt, 0);
                             }
                             break;
                         }
@@ -364,30 +362,30 @@ void mcp_module_run(
                             memcpy(buf + 3, &size, 4);
                             uint16_t blksize = 1024;
                             memcpy(buf + 7, &blksize, 2);
-                            peer_write(&ctx, token, buf, 9);
+                            peer_write(&cwt, buf, 9);
                         }
                         else assert(0);
                     }
                 }
                 else if(action == 3) { // delete
-                    uint8_t fname_len = peer_read1(&ctx, token);
-                    peer_read(&ctx, token, fname, fname_len);
+                    uint8_t fname_len = peer_read1(&cwt);
+                    peer_read(&cwt, fname, fname_len);
                     fname[fname_len] = '\0';
 
                     uint32_t i;
                     for(i = 0; i < static_file_table_size; i++)
                         if(0 == strcmp(fname, static_file_table[i].name)) break;
                     if(i < static_file_table_size) {
-                        peer_write1(&ctx, token, 2); // EACCES
+                        peer_write1(&cwt, 2); // EACCES
                         continue;
                     }
 
-                    peer_write1(&ctx, token, rw_fs_vtable->delete(rw_fs_ctx, fname));
+                    peer_write1(&cwt, rw_fs_vtable->delete(rw_fs_ctx, fname));
                 }
                 else assert(0);
             }
             else {
-                peer_write1(&ctx, token, 1); // we don't support it
+                peer_write1(&cwt, 1); // we don't support it
             }
         }
     }
