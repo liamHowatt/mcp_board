@@ -238,11 +238,10 @@ void mcp_module_run(
                                 uint32_t read_len;
                                 peer_read(&ctx, token, &read_len, 4);
                                 uint32_t actually_read = MIN(read_len, remain);
+                                peer_write(&ctx, token, &actually_read, 4);
                                 peer_write(&ctx, token, content_u8, actually_read);
-                                peer_write_zeros(&ctx, token, read_len - actually_read);
-                                buf[0] = 0; // OK
-                                memcpy(buf + 1, &actually_read, 4);
-                                peer_write(&ctx, token, buf, 5);
+                                if(actually_read && actually_read < read_len) peer_write_zeros(&ctx, token, 5);
+                                else peer_write1(&ctx, token, 0); // OK
                                 content_u8 += actually_read;
                                 remain -= actually_read;
                             }
@@ -291,13 +290,14 @@ void mcp_module_run(
                                         fs_res = rw_fs_vtable->write(rw_fs_ctx, buf, chunk);
                                         if(fs_res) break;
                                         remain -= chunk;
+                                        file_pos += chunk;
                                     }
                                 }
                                 peer_read_null(&ctx, token, remain);
                                 peer_write1(&ctx, token, fs_res);
                             }
                             else { // read
-                                uint32_t amt_read = 0;
+                                bool zero_chunk_sent = false;
                                 if(fs_res) {
                                     fs_res = MCP_MODULE_RW_FS_RESULT_EIO;
                                 } else {
@@ -306,16 +306,20 @@ void mcp_module_run(
                                         uint32_t actually_read;
                                         fs_res = rw_fs_vtable->read(rw_fs_ctx, buf, try, &actually_read);
                                         if(fs_res) break;
+                                        peer_write(&ctx, token, &actually_read, 4);
                                         peer_write(&ctx, token, buf, actually_read);
-                                        amt_read += actually_read;
                                         remain -= actually_read;
-                                        if(actually_read < try) break;
+                                        file_pos += actually_read;
+                                        if(actually_read < try) {
+                                            if(actually_read == 0) zero_chunk_sent = true;
+                                            break;
+                                        }
                                     }
                                 }
-                                peer_write_zeros(&ctx, token, remain);
-                                buf[0] = fs_res;
-                                memcpy(buf + 1, &amt_read, 4);
-                                peer_write(&ctx, token, buf, 5);
+                                if(!zero_chunk_sent && remain) {
+                                    peer_write_zeros(&ctx, token, 4);
+                                }
+                                peer_write1(&ctx, token, fs_res);
                             }
                         }
                         else if(sub_action == 1) { // close
