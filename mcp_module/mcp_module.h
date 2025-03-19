@@ -22,7 +22,7 @@ typedef enum {
 } mcp_module_rw_fs_result_t;
 
 typedef struct {
-    void (*list)(void *, void *, void (*)(void *, const char *));
+    mcp_module_rw_fs_result_t (*list)(void *, void *, void (*)(void *, const char *));
     mcp_module_rw_fs_result_t (*delete)(void *, const char *);
     mcp_module_rw_fs_result_t (*open)(void *, bool is_read, const char *);
     mcp_module_rw_fs_result_t (*close)(void *);

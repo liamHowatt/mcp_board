@@ -77,7 +77,7 @@ def main():
         makefile_bak_path = os.path.join(CUBE_DIR, "Makefile.bak")
         # create a backup of the makefile to restore if the user runs this
         # after restructuring their own source directories.
-        # if "clean" was run, no backup will exist yet and cube will
+        # if "clean_cube" was run, no backup will exist yet and cube will
         # have created a new makefile which needs to be backed up
         if os.path.isfile(makefile_bak_path):
             shutil.copyfile(makefile_bak_path, makefile_path)
@@ -127,6 +127,17 @@ def main():
             f.write(parts[2])
 
         shutil.rmtree(os.path.join(CUBE_DIR, "build"), ignore_errors=True)
+
+        for replace in cfg.get("replace", ()):
+            replace_file_path = os.path.join(CUBE_DIR, replace["file"])
+            with open(replace_file_path, "r") as f:
+                cont = f.read()
+            cont_new = cont.replace(replace["old"], replace["new"])
+            if cont_new == cont:
+                print("warning: nothing replaced for", replace)
+                continue
+            with open(replace_file_path, "w") as f:
+                f.write(cont_new)
 
     elif args.action == "build":
         cfg = get_cfg()

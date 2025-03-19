@@ -202,13 +202,22 @@ void mcp_module_run(
                     uint32_t fname_byte_count = 0;
                     for(uint32_t i = 0; i < static_file_table_size; i++)
                         fname_byte_count += strlen(static_file_table[i].name) + 1;
-                    if(rw_fs_vtable)
-                        rw_fs_vtable->list(rw_fs_ctx, &fname_byte_count, file_list_counter);
+                    uint8_t fs_res = 0;
+                    if(rw_fs_vtable) {
+                        uint32_t fname_byte_count_save = fname_byte_count;
+                        fs_res = rw_fs_vtable->list(rw_fs_ctx, &fname_byte_count, file_list_counter);
+                        if(fs_res) {
+                            fname_byte_count = fname_byte_count_save;
+                        }
+                    }
                     peer_write(&cwt, &fname_byte_count, sizeof(fname_byte_count));
                     for(uint32_t i = 0; i < static_file_table_size; i++)
                         peer_write(&cwt, static_file_table[i].name, strlen(static_file_table[i].name) + 1);
-                    if(rw_fs_vtable) {
-                        rw_fs_vtable->list(rw_fs_ctx, &cwt, file_list_writer);
+                    if(rw_fs_vtable && !fs_res) {
+                        fs_res = rw_fs_vtable->list(rw_fs_ctx, &cwt, file_list_writer);
+                        // can't recover from this because we've already
+                        // promised `fname_byte_count` bytes of file names
+                        assert(!fs_res);
                     }
                 }
                 else if (action == 0 || action == 1) { // write or read
