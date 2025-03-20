@@ -8,7 +8,7 @@
 #include "../mcp_fs/mcp_fs.h"
 #include MCP_MODULE_STM32_HAL_HEADER
 
-#define MCP_MODULE_STM32_MCP_FS_AUX_MEMORY_SIZE(block_count) (FLASH_PAGE_SIZE + MFS_BIT_BUF_SIZE_BYTES((block_count)) * 4)
+#define MCP_MODULE_STM32_MCP_FS_AUX_MEMORY_SIZE(block_count) MFS_ALIGNED_AUX_MEMORY_SIZE(FLASH_PAGE_SIZE, (block_count))
 
 typedef struct {
     mfs_t mfs;

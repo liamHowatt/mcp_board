@@ -6,11 +6,11 @@
 
 #define PAGE_ADDR(page_id) (((volatile uint8_t *)FLASH_BASE) + (FLASH_PAGE_SIZE * (page_id)))
 
-static int read_block(void * cb_ctx, int block_index)
+static int read_block(void * cb_ctx, int block_index, void * vdst)
 {
     mcp_module_stm32_mcp_fs_t * mmfs = cb_ctx;
 
-    uint8_t * dst = mmfs->conf.block_buf;
+    uint8_t * dst = vdst;
     volatile uint8_t * src_block = PAGE_ADDR(mmfs->block0_page_id + block_index);
 
     uint64_t * dst_u64 = (uint64_t *) dst;
@@ -23,7 +23,7 @@ static int read_block(void * cb_ctx, int block_index)
     return 0;
 }
 
-static int write_block(void * cb_ctx, int block_index)
+static int write_block(void * cb_ctx, int block_index, const void * vsrc)
 {
     HAL_StatusTypeDef res;
 
@@ -46,7 +46,7 @@ static int write_block(void * cb_ctx, int block_index)
     }
 
     volatile uint8_t * dst_block = PAGE_ADDR(mmfs->block0_page_id + block_index);
-    uint64_t * src = (uint64_t *) mmfs->conf.block_buf;
+    uint64_t * src = (uint64_t *) vsrc;
 
     for(uint32_t i = 0; i < FLASH_PAGE_SIZE; i += 8) {
         res = HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD,
@@ -70,14 +70,7 @@ int mcp_module_stm32_mcp_fs_init(
     int block_count
 )
 {
-    mmfs->conf.block_buf = aligned_aux_memory;
-    uint8_t * aux_mem_u8 = aligned_aux_memory;
-    aux_mem_u8 += FLASH_PAGE_SIZE;
-    int bit_buf_size = MFS_BIT_BUF_SIZE_BYTES(block_count);
-    for(int i = 0; i < 4; i++) {
-        mmfs->conf.bit_bufs[i] = aux_mem_u8;
-        aux_mem_u8 += bit_buf_size;
-    }
+    mmfs->conf.aligned_aux_memory = aligned_aux_memory;
     mmfs->conf.block_size = FLASH_PAGE_SIZE;
     mmfs->conf.block_count = block_count;
     mmfs->conf.cb_ctx = mmfs;
