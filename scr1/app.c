@@ -35,6 +35,8 @@ void app_main(void) {
         HAL_Delay(200);
     }
 
+    HAL_TIM_Base_Start(&MICROSECOND_TIMER);
+
     static mcp_module_stm32_mcp_fs_t mmfs;
     static uint8_t mmfs_aligned_aux_memory[MCP_MODULE_STM32_MCP_FS_AUX_MEMORY_SIZE(APP_FS_BLOCK_COUNT)] __attribute__((aligned));
 
@@ -43,6 +45,7 @@ void app_main(void) {
 
     mcp_module_stm32_run(
         clk_dat_pins,
+        &MICROSECOND_TIMER,
         static_file_table,
         sizeof(static_file_table) / sizeof(mcp_module_static_file_table_entry_t),
         &mmfs,

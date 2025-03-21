@@ -15,3 +15,6 @@ extern char logln_buf[256];
 #else
 #define LOGLN(format, ...)
 #endif
+
+#define MICROSECOND_TIMER htim14
+extern TIM_HandleTypeDef MICROSECOND_TIMER;
