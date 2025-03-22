@@ -10,8 +10,12 @@ typedef struct {
     uint32_t content_size;
 } mcp_module_static_file_table_entry_t;
 
-typedef void (*mcp_module_delay_us_cb_t)(void * user_ctx, uint32_t us);
-typedef void (*mcp_module_wait_clk_high_cb_t)(void * user_ctx);
+typedef struct mcp_module_driver_handle mcp_module_driver_handle_t;
+
+typedef void (*mcp_module_delay_us_cb_t)(void * hal_ctx, uint32_t us);
+typedef void (*mcp_module_wait_clk_high_cb_t)(void * hal_ctx);
+
+typedef void (*mcp_module_driver_protocol_cb_t)(mcp_module_driver_handle_t * hdl, void * driver_protocol_ctx);
 
 typedef enum {
     MCP_MODULE_RW_FS_RESULT_OK           = 0,
@@ -31,7 +35,7 @@ typedef struct {
 } mcp_module_rw_fs_vtable_t;
 
 void mcp_module_run(
-    void * user_ctx,
+    void * hal_ctx,
     mbb_cli_read_cb_t bb_read_cb,
     mbb_cli_write_cb_t bb_write_cb,
     mcp_module_delay_us_cb_t delay_us_cb,
@@ -39,5 +43,10 @@ void mcp_module_run(
     const mcp_module_static_file_table_entry_t * static_file_table,
     uint32_t static_file_table_size,
     void * rw_fs_ctx,
-    const mcp_module_rw_fs_vtable_t * rw_fs_vtable
+    const mcp_module_rw_fs_vtable_t * rw_fs_vtable,
+    void * driver_protocol_ctx,
+    mcp_module_driver_protocol_cb_t driver_protocol_cb
 );
+
+void mcp_module_driver_read(mcp_module_driver_handle_t * hdl, void * dst, uint32_t size);
+void mcp_module_driver_write(mcp_module_driver_handle_t * hdl, const void * src, uint32_t size);

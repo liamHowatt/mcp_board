@@ -1,7 +1,5 @@
 #include "mcp_module_stm32.h"
 
-#include <assert.h>
-
 typedef struct {
     const mcp_module_stm32_pin_t * clk_dat_pins;
     TIM_HandleTypeDef * microsecond_timer;
@@ -21,9 +19,9 @@ static void bb_write_cb(void * caller_ctx, mbb_cli_pin_t pinno, bool val)
     HAL_GPIO_WritePin(pin->port, pin->pin, val);
 }
 
-static void delay_us_cb(void * user_ctx, uint32_t us)
+static void delay_us_cb(void * hal_ctx, uint32_t us)
 {
-    ctx_t * ctx = user_ctx;
+    ctx_t * ctx = hal_ctx;
     if(ctx->microsecond_timer && us <= 0xffffu) {
         uint16_t us_u16 = us;
         uint16_t start = __HAL_TIM_GET_COUNTER(ctx->microsecond_timer);
@@ -43,9 +41,9 @@ static void delay_us_cb(void * user_ctx, uint32_t us)
     }
 }
 
-static void wait_clk_high_cb(void * user_ctx)
+static void wait_clk_high_cb(void * hal_ctx)
 {
-    while(!bb_read_cb(user_ctx, MBB_CLI_PIN_CLK));
+    while(!bb_read_cb(hal_ctx, MBB_CLI_PIN_CLK));
 }
 
 void mcp_module_stm32_run(
@@ -54,7 +52,9 @@ void mcp_module_stm32_run(
     const mcp_module_static_file_table_entry_t * static_file_table,
     uint32_t static_file_table_size,
     void * rw_fs_ctx,
-    const mcp_module_rw_fs_vtable_t * rw_fs_vtable
+    const mcp_module_rw_fs_vtable_t * rw_fs_vtable,
+    void * driver_protocol_ctx,
+    mcp_module_driver_protocol_cb_t driver_protocol_cb
 )
 {
     ctx_t ctx = {clk_dat_pins, microsecond_timer};
@@ -68,6 +68,8 @@ void mcp_module_stm32_run(
         static_file_table,
         static_file_table_size,
         rw_fs_ctx,
-        rw_fs_vtable
+        rw_fs_vtable,
+        driver_protocol_ctx,
+        driver_protocol_cb
     );
 }

@@ -5,6 +5,9 @@
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
+#define peer_read  mcp_module_driver_read
+#define peer_write mcp_module_driver_write
+
 typedef struct {
     mbb_cli_t bb;
     void * uctx;
@@ -12,10 +15,11 @@ typedef struct {
     mcp_module_wait_clk_high_cb_t wait_clk_high_cb;
 } ctx_t;
 
-typedef struct {
+struct mcp_module_driver_handle {
     ctx_t ctx;
     uint8_t token;
-} cwt_t;
+};
+typedef struct mcp_module_driver_handle cwt_t;
 
 static void run1(ctx_t * ctx)
 {
@@ -56,7 +60,7 @@ static uint32_t begin_read_or_write(cwt_t * cwt, bool is_read, uint32_t size)
     return MIN(size, internal_buffer_size);
 }
 
-static void peer_read(cwt_t * cwt, void * dst, uint32_t size)
+void mcp_module_driver_read(cwt_t * cwt, void * dst, uint32_t size)
 {
     uint8_t * dstu8 = dst;
     while(size) {
@@ -68,7 +72,7 @@ static void peer_read(cwt_t * cwt, void * dst, uint32_t size)
     }
 }
 
-static void peer_write(cwt_t * cwt, const void * src, uint32_t size)
+void mcp_module_driver_write(cwt_t * cwt, const void * src, uint32_t size)
 {
     const uint8_t * srcu8 = src;
     while(size) {
@@ -141,7 +145,9 @@ void mcp_module_run(
     const mcp_module_static_file_table_entry_t * static_file_table,
     uint32_t static_file_table_size,
     void * rw_fs_ctx,
-    const mcp_module_rw_fs_vtable_t * rw_fs_vtable
+    const mcp_module_rw_fs_vtable_t * rw_fs_vtable,
+    void * driver_protocol_ctx,
+    mcp_module_driver_protocol_cb_t driver_protocol_cb
 )
 {
     delay_us_cb(uctx, 100 * 1000); // give the base time to start
@@ -392,6 +398,15 @@ void mcp_module_run(
                     peer_write1(&cwt, rw_fs_vtable->delete(rw_fs_ctx, fname));
                 }
                 else assert(0);
+            }
+            else if(protocol == 1) { // driver protocol
+                if(driver_protocol_cb) {
+                    peer_write1(&cwt, 0); // we support it
+                    driver_protocol_cb(&cwt, driver_protocol_ctx);
+                }
+                else {
+                    peer_write1(&cwt, 1); // we don't support it
+                }
             }
             else {
                 peer_write1(&cwt, 1); // we don't support it

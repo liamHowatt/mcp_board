@@ -23,6 +23,16 @@ static const mcp_module_static_file_table_entry_t static_file_table[] = {
     {"info", "one\ntwo\nthree\n", 14}
 };
 
+static void driver_protocol_cb(mcp_module_driver_handle_t * hdl, void * driver_protocol_ctx)
+{
+    uint8_t * ctr_p = driver_protocol_ctx;
+
+    for(int i = 0; i < 5; i++) {
+        mcp_module_driver_write(hdl, ctr_p, 1);
+        (*ctr_p)++;
+    }
+}
+
 void app_main(void) {
     int res;
 
@@ -43,12 +53,16 @@ void app_main(void) {
     res = mcp_module_stm32_mcp_fs_init(&mmfs, mmfs_aligned_aux_memory, FLASH_PAGE_NB - APP_FS_BLOCK_COUNT, APP_FS_BLOCK_COUNT);
     assert(res == 0);
 
+    uint8_t ctr = 0;
+
     mcp_module_stm32_run(
         clk_dat_pins,
         &MICROSECOND_TIMER,
         static_file_table,
         sizeof(static_file_table) / sizeof(mcp_module_static_file_table_entry_t),
         &mmfs,
-        &mcp_module_stm32_mcp_fs_rw_fs_vtable
+        &mcp_module_stm32_mcp_fs_rw_fs_vtable,
+        &ctr,
+        driver_protocol_cb
     );
 }

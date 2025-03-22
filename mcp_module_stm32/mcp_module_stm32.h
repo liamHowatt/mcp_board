@@ -15,5 +15,7 @@ void mcp_module_stm32_run(
     const mcp_module_static_file_table_entry_t * static_file_table,
     uint32_t static_file_table_size,
     void * rw_fs_ctx,
-    const mcp_module_rw_fs_vtable_t * rw_fs_vtable
+    const mcp_module_rw_fs_vtable_t * rw_fs_vtable,
+    void * driver_protocol_ctx,
+    mcp_module_driver_protocol_cb_t driver_protocol_cb
 );
