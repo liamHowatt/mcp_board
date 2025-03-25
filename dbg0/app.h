@@ -1,11 +1,11 @@
 #pragma once
 #include "hal_header.h"
-#include <stdio.h>
 
 void app_main(void);
 
-#define DBG_UART huart1
+// #define DBG_UART huart1
 #ifdef DBG_UART
+#include <stdio.h>
 extern UART_HandleTypeDef DBG_UART;
 extern char logln_buf[256];
 #define LOGLN(format, ...) \

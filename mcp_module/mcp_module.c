@@ -13,6 +13,7 @@ typedef struct {
     void * uctx;
     mcp_module_delay_us_cb_t delay_us_cb;
     mcp_module_wait_clk_high_cb_t wait_clk_high_cb;
+    uint8_t whereami;
 } ctx_t;
 
 struct mcp_module_driver_handle {
@@ -136,6 +137,16 @@ static void file_list_writer(void * vctx, const char * fname)
     peer_write(cwt, fname, strlen(fname) + 1);
 }
 
+uint8_t mcp_module_driver_whereami(cwt_t * cwt)
+{
+    if(cwt->ctx.whereami != 255) return cwt->ctx.whereami;
+
+    write1(&cwt->ctx, 5); // whereami
+    uint8_t whereami = read1(&cwt->ctx);
+    cwt->ctx.whereami = whereami;
+    return whereami;
+}
+
 void mcp_module_run(
     void * uctx,
     mbb_cli_read_cb_t bb_read_cb,
@@ -168,6 +179,7 @@ void mcp_module_run(
     cwt.ctx.uctx = uctx;
     cwt.ctx.delay_us_cb = delay_us_cb;
     cwt.ctx.wait_clk_high_cb = wait_clk_high_cb;
+    cwt.ctx.whereami = 255;
 
     write1(&cwt.ctx, 255);
     read1(&cwt.ctx); // read our token

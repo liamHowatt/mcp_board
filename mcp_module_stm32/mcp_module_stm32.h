@@ -9,9 +9,17 @@
 
 typedef struct {GPIO_TypeDef *port; uint16_t pin;} mcp_module_stm32_pin_t;
 
+typedef
+    #ifdef __HAL_TIM_GET_COUNTER
+        TIM_HandleTypeDef
+    #else
+        void
+    #endif
+microsecond_timer_t;
+
 void mcp_module_stm32_run(
     const mcp_module_stm32_pin_t * clk_dat_pins,
-    TIM_HandleTypeDef * microsecond_timer,
+    microsecond_timer_t * microsecond_timer,
     const mcp_module_static_file_table_entry_t * static_file_table,
     uint32_t static_file_table_size,
     void * rw_fs_ctx,

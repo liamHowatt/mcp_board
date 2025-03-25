@@ -1,8 +1,9 @@
 #include "mcp_module_stm32.h"
+#include <assert.h>
 
 typedef struct {
     const mcp_module_stm32_pin_t * clk_dat_pins;
-    TIM_HandleTypeDef * microsecond_timer;
+    microsecond_timer_t * microsecond_timer;
 } ctx_t;
 
 static bool bb_read_cb(void * caller_ctx, mbb_cli_pin_t pinno)
@@ -22,7 +23,8 @@ static void bb_write_cb(void * caller_ctx, mbb_cli_pin_t pinno, bool val)
 static void delay_us_cb(void * hal_ctx, uint32_t us)
 {
     ctx_t * ctx = hal_ctx;
-    if(ctx->microsecond_timer && us <= 0xffffu) {
+#ifdef __HAL_TIM_GET_COUNTER
+    if(ctx->microsecond_timer && us < 0xffffu - 5000u) {
         uint16_t us_u16 = us;
         uint16_t start = __HAL_TIM_GET_COUNTER(ctx->microsecond_timer);
         uint16_t now;
@@ -32,6 +34,10 @@ static void delay_us_cb(void * hal_ctx, uint32_t us)
             diff = now - start;
         } while(diff < us_u16);
     }
+#else
+    assert(!ctx->microsecond_timer);
+    if(0);
+#endif
     else {
         if(us <= 2000) {
             HAL_Delay(2);
@@ -48,7 +54,7 @@ static void wait_clk_high_cb(void * hal_ctx)
 
 void mcp_module_stm32_run(
     const mcp_module_stm32_pin_t * clk_dat_pins,
-    TIM_HandleTypeDef * microsecond_timer,
+    microsecond_timer_t * microsecond_timer,
     const mcp_module_static_file_table_entry_t * static_file_table,
     uint32_t static_file_table_size,
     void * rw_fs_ctx,

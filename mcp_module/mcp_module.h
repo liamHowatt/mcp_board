@@ -50,3 +50,4 @@ void mcp_module_run(
 
 void mcp_module_driver_read(mcp_module_driver_handle_t * hdl, void * dst, uint32_t size);
 void mcp_module_driver_write(mcp_module_driver_handle_t * hdl, const void * src, uint32_t size);
+uint8_t mcp_module_driver_whereami(mcp_module_driver_handle_t * hdl);
