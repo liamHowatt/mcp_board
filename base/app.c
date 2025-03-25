@@ -31,6 +31,7 @@ typedef struct {
     volatile mbb_srv_transfer_t trn;
     volatile bool is_transferring;
     volatile uint8_t index;
+    volatile bool flip;
 } ctx_t;
 
 typedef struct {GPIO_TypeDef *port; uint16_t pin;} pin_t;
@@ -138,14 +139,14 @@ static void pin_write(void * vctx, mbb_srv_pin_t pinno, bool value)
     HAL_GPIO_WritePin(pin->port, pin->pin, value);
 }
 
-void set_xpoint(mmn_srv_t * vsrv, mmn_srv_crosspoint_command_t command)
+static void set_xpoint(mmn_srv_t * vsrv, mmn_srv_crosspoint_command_t command)
 {
     stm32_srv_t * srv = (stm32_srv_t *) vsrv;
     srv->xpoint_command = command;
     __DMB();
     srv->xpoint_is_transferring = true;
 }
-bool get_xpoint(mmn_srv_t * vsrv, mmn_srv_crosspoint_command_t * command_dst)
+static bool get_xpoint(mmn_srv_t * vsrv, mmn_srv_crosspoint_command_t * command_dst)
 {
     stm32_srv_t * srv = (stm32_srv_t *) vsrv;
     if(srv->xpoint_is_transferring) {
@@ -154,20 +155,46 @@ bool get_xpoint(mmn_srv_t * vsrv, mmn_srv_crosspoint_command_t * command_dst)
     }
     return false;
 }
-void set_xpoint_done(mmn_srv_t * vsrv)
+static void set_xpoint_done(mmn_srv_t * vsrv)
 {
     stm32_srv_t * srv = (stm32_srv_t *) vsrv;
     srv->xpoint_is_transferring = false;
 }
-bool get_xpoint_done(mmn_srv_t * vsrv)
+static bool get_xpoint_done(mmn_srv_t * vsrv)
 {
     stm32_srv_t * srv = (stm32_srv_t *) vsrv;
     return !srv->xpoint_is_transferring;
 }
-void xpoint_pin_write(mmn_srv_t * vsrv, mmn_srv_xpoint_pin_t pinno, bool en)
+static void xpoint_pin_write(mmn_srv_t * vsrv, mmn_srv_xpoint_pin_t pinno, bool en)
 {
     const pin_t * pin = &xpoint_pins[pinno];
     HAL_GPIO_WritePin(pin->port, pin->pin, en);
+}
+
+static void set_flip(void * vctx, bool flip)
+{
+    ctx_t * ctx = vctx;
+    ctx->flip = flip;
+    __DMB();
+}
+static uint32_t fpga_decode_pinno(void * vctx, uint32_t pinno)
+{
+    static const bool pins_out_of_order[SOCKET_COUNT] = {
+        0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1
+    };
+
+    ctx_t * ctx = vctx;
+    bool flip = ctx->flip;
+    uint8_t index = ctx->index;
+
+    bool is_out_of_order = pins_out_of_order[index];
+
+    bool reversed = flip ^ is_out_of_order;
+
+    if(reversed) {
+        return 3 - pinno;
+    }
+    return pinno;
 }
 
 static const mmn_srv_cbs_t cbs = {
@@ -184,7 +211,9 @@ static const mmn_srv_cbs_t cbs = {
     .get_xpoint = get_xpoint,
     .set_xpoint_done = set_xpoint_done,
     .get_xpoint_done = get_xpoint_done,
-    .xpoint_pin_write = xpoint_pin_write
+    .xpoint_pin_write = xpoint_pin_write,
+    .set_flip = set_flip,
+    .fpga_decode_pinno = fpga_decode_pinno
 };
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
@@ -202,6 +231,7 @@ void app_main(void) {
     mmn_srv_init(&g_srv.srv, SOCKET_COUNT, BUF_SIZE, aux_memory, &cbs);
     for(uint8_t i = 0; i < SOCKET_COUNT; i++) {
         ctxs[i].index = i;
+        ctxs[i].flip = false;
         mmn_srv_member_init(&g_srv.srv, &g_srv.memb[i], i, &ctxs[i]);
     }
 

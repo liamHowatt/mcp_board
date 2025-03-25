@@ -199,13 +199,18 @@ static void req_14_state(mmn_srv_socket_t * soc)
 	mmn_srv_t * srv = srv_from_soc(soc);
 	bool enable = soc->req_13_state_xpoint_data.pin_info & 0x01;
 	soc->req_13_state_xpoint_data.pin_info >>= 1;
-	uint32_t output_index = (soc->req_13_state_xpoint_data.output << 2)
-							| (soc->req_13_state_xpoint_data.pin_info & 0x03);
+	if(soc->req_13_state_xpoint_data.output >= srv->socket_count) return;
+	uint32_t output_pinno = srv->cbs->fpga_decode_pinno(srv->memb[soc->req_13_state_xpoint_data.output].soc.ctx,
+		soc->req_13_state_xpoint_data.pin_info & 0x03);
+	uint32_t output_index = (soc->req_13_state_xpoint_data.output << 2) | output_pinno;
 	uint32_t input_idx = 0;
 	if(soc->req_13_state_xpoint_data.input != 255) {
 		soc->req_13_state_xpoint_data.pin_info >>= 2;
+		if(soc->req_13_state_xpoint_data.input >= srv->socket_count) return;
+		uint32_t input_pinno = srv->cbs->fpga_decode_pinno(srv->memb[soc->req_13_state_xpoint_data.input].soc.ctx,
+			soc->req_13_state_xpoint_data.pin_info & 0x03);
 		input_idx = ((soc->req_13_state_xpoint_data.input << 2)
-						| (soc->req_13_state_xpoint_data.pin_info & 0x03))
+						| input_pinno)
 					+ 1;
 	}
 	uint32_t edge_point_count = 4 * srv->socket_count;
@@ -558,6 +563,7 @@ void mmn_srv_timer_isr_handler(mmn_srv_t * srv)
 			soc->is_transferring = false;
 			srv->cbs->set_trn_done(soc->ctx, mbb_srv_get_read_byte(&soc->bb));
 		}
+		srv->cbs->set_flip(soc->ctx, mbb_srv_is_flipped(&soc->bb));
 	}
 
 	switch (srv->xpoint_isr_ctx.progress) {

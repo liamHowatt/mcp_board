@@ -21,6 +21,8 @@ typedef struct {
     // trn
     mbb_srv_transfer_t trn;
     bool is_transferring;
+    // bool flip;
+    bool out_of_order;
 
     // bb
     mbb_srv_transfer_t bb_trn;
@@ -110,6 +112,18 @@ void xpoint_pin_write(mmn_srv_t * srv, mmn_srv_xpoint_pin_t pin, bool en)
     sim_con_pin_set(tstsrv->sim, sim_pin, en);
 }
 
+static void set_flip(void * vctx, bool flip)
+{
+    // ctx_t * ctx = vctx;
+    // ctx->flip = flip
+}
+static uint32_t fpga_decode_pinno(void * vctx, uint32_t pinno)
+{
+    ctx_t * ctx = vctx;
+    if(ctx->out_of_order) return 3 - pinno;
+    return pinno;
+}
+
 static const mmn_srv_cbs_t cbs = {
     .get_tick_ms = get_tick_ms,
     .set_trn = set_trn,
@@ -120,7 +134,9 @@ static const mmn_srv_cbs_t cbs = {
 	.get_xpoint = get_xpoint,
 	.set_xpoint_done = set_xpoint_done,
 	.get_xpoint_done = get_xpoint_done,
-	.xpoint_pin_write = xpoint_pin_write
+	.xpoint_pin_write = xpoint_pin_write,
+    .set_flip = set_flip,
+    .fpga_decode_pinno = fpga_decode_pinno
 };
 
 static void run_an_iteration(mmn_srv_t * srv)
@@ -160,6 +176,7 @@ int main()
     static uint8_t aux_memory[MMN_SRV_AUX_MEMORY_SIZE(SOCKET_COUNT, BUF_SIZE)];
     mmn_srv_init(&srv.srv, SOCKET_COUNT, BUF_SIZE, aux_memory, &cbs);
     static ctx_t ctxs[SOCKET_COUNT] = {0};
+    ctxs[9].out_of_order = true;
     for(uint8_t i = 0; i < SOCKET_COUNT; i++) {
         mmn_srv_member_init(&srv.srv, &srv.memb[i], i, &ctxs[i]);
     }
@@ -320,6 +337,16 @@ int main()
     sim_eval(srv.sim);
     for(int i = 1; i < 48; i++) assert(sim_output_pin_check(srv.sim, i) == (i == 0 || i == 9 || i == 4 * 4 + 3));
 
+    buf[0] = MMN_SRV_OPCODE_CROSSPOINT;
+    buf[1] = 9;
+    buf[2] = 10;
+    buf[3] = (0 << 3) | (0 << 1) | 1;
+    test_write(&srv.srv, ctxs, 3, buf, 4);
+    for(int i = 1; i < 48; i++) assert(sim_output_pin_check(srv.sim, i) == (i == 0 || i == 9 || i == 4 * 4 + 3));
+    sim_input_pin_set(srv.sim, 9 * 4 + 3, true); // socket 9 is out of order so pinno 3 will be decoded to 0
+    sim_eval(srv.sim);
+    for(int i = 1; i < 48; i++) assert(sim_output_pin_check(srv.sim, i) == (i == 0 || i == 9 || i == 4 * 4 + 3 || i == 10 * 4 + 0));
+
     buf[0] = MMN_SRV_OPCODE_WHEREAMI;
     test_write(&srv.srv, ctxs, 3, buf, 1);
     buf[0] = 0;
@@ -364,4 +391,9 @@ uint8_t mbb_srv_get_read_byte(mbb_srv_t * mbb)
 {
     ctx_t * ctx = mbb->ctx;
     return ctx->read_byte;
+}
+
+bool mbb_srv_is_flipped(mbb_srv_t * mbb)
+{
+    return false;
 }

@@ -42,6 +42,8 @@ typedef bool (*mmn_srv_get_crosspoint_command_cb_t)(mmn_srv_t *, mmn_srv_crosspo
 typedef void (*mmn_srv_set_crosspoint_command_done_cb_t)(mmn_srv_t *);
 typedef bool (*mmn_srv_get_crosspoint_command_done_cb_t)(mmn_srv_t *);
 typedef void (*mmn_srv_xpoint_pin_write_cb_t)(mmn_srv_t *, mmn_srv_xpoint_pin_t, bool);
+typedef void (*mmn_srv_set_flip_cb_t)(void *, bool);
+typedef uint32_t (*mmn_srv_fpga_decode_pinno_cb_t)(void *, uint32_t pinno);
 
 typedef void (*mmn_srv_state_machine_cb_t)(mmn_srv_socket_t *);
 
@@ -57,6 +59,8 @@ typedef struct {
 	mmn_srv_set_crosspoint_command_done_cb_t set_xpoint_done;
 	mmn_srv_get_crosspoint_command_done_cb_t get_xpoint_done;
 	mmn_srv_xpoint_pin_write_cb_t xpoint_pin_write;
+	mmn_srv_set_flip_cb_t set_flip;
+	mmn_srv_fpga_decode_pinno_cb_t fpga_decode_pinno;
 } mmn_srv_cbs_t;
 
 typedef struct {

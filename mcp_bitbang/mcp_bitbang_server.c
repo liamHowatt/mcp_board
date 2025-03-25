@@ -6,6 +6,7 @@ void mbb_srv_init(mbb_srv_t * mbb, const mbb_srv_cbs_t * cbs, void * caller_ctx)
     mbb->caller_ctx = caller_ctx;
     mbb->bootstrapping = true;
     mbb->bootstrap_progress = 0;
+    mbb->clk_pin = 0;
 }
 
 void mbb_srv_start_byte_transfer(mbb_srv_t * mbb, mbb_srv_transfer_t transfer)
@@ -70,4 +71,9 @@ bool mbb_srv_continue_byte_transfer(mbb_srv_t * mbb)
 uint8_t mbb_srv_get_read_byte(mbb_srv_t * mbb)
 {
     return mbb->data;
+}
+
+bool mbb_srv_is_flipped(mbb_srv_t * mbb)
+{
+    return mbb->clk_pin;
 }

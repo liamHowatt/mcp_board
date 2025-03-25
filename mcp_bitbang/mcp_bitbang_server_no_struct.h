@@ -27,3 +27,4 @@ void mbb_srv_init(mbb_srv_t * mbb, const mbb_srv_cbs_t * cbs, void * caller_ctx)
 void mbb_srv_start_byte_transfer(mbb_srv_t * mbb, mbb_srv_transfer_t transfer);
 bool mbb_srv_continue_byte_transfer(mbb_srv_t * mbb);
 uint8_t mbb_srv_get_read_byte(mbb_srv_t * mbb);
+bool mbb_srv_is_flipped(mbb_srv_t * mbb);
