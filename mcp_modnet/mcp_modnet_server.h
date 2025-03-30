@@ -20,7 +20,8 @@ typedef enum {
 	MMN_SRV_OPCODE_SET_INTEREST,
 	MMN_SRV_OPCODE_POLL,
 	MMN_SRV_OPCODE_CROSSPOINT,
-	MMN_SRV_OPCODE_WHEREAMI
+	MMN_SRV_OPCODE_WHEREAMI,
+	MMN_SRV_OPCODE_GETINFO
 } mmn_srv_opcode_t;
 
 typedef enum {
@@ -167,6 +168,12 @@ struct mmn_srv_socket_t {
 				uint8_t pin_info;
 			} req_13_state_xpoint_data;
 		};
+		struct {
+			struct {
+				uint8_t info_len;
+				uint8_t us_delay_of_modules;
+			} req_16_state_info;
+		};
 	};
 };
 
@@ -185,6 +192,7 @@ typedef struct {
 
 struct mmn_srv_t {
 	uint8_t socket_count;
+	uint8_t us_delay_of_modules;
 	uint8_t token_counter;
 	uint8_t buf_size;
 	bool crosspoint_is_transferring;
@@ -198,6 +206,7 @@ struct mmn_srv_t {
 void mmn_srv_init(
 	mmn_srv_t * srv,
 	uint8_t socket_count,
+	uint8_t us_delay_of_modules,
 	uint8_t buf_size,
 	uint8_t * aux_memory,
 	const mmn_srv_cbs_t * cbs

@@ -174,7 +174,7 @@ int main()
     sim_eval(srv.sim);
 
     static uint8_t aux_memory[MMN_SRV_AUX_MEMORY_SIZE(SOCKET_COUNT, BUF_SIZE)];
-    mmn_srv_init(&srv.srv, SOCKET_COUNT, BUF_SIZE, aux_memory, &cbs);
+    mmn_srv_init(&srv.srv, SOCKET_COUNT, 125, BUF_SIZE, aux_memory, &cbs);
     static ctx_t ctxs[SOCKET_COUNT] = {0};
     ctxs[9].out_of_order = true;
     for(uint8_t i = 0; i < SOCKET_COUNT; i++) {
@@ -352,6 +352,17 @@ int main()
     buf[0] = 0;
     test_read(&srv.srv, ctxs, 3, buf, 1);
     assert(buf[0] == 3);
+
+    buf[0] = MMN_SRV_OPCODE_GETINFO;
+    test_write(&srv.srv, ctxs, 3, buf, 1);
+    test_read(&srv.srv, ctxs, 3, buf, 2);
+    assert(buf[0] == 1);
+    assert(buf[1] == 125);
+    buf[0] = MMN_SRV_OPCODE_GETINFO;
+    test_write(&srv.srv, ctxs, 3, buf, 1);
+    test_read(&srv.srv, ctxs, 3, buf, 2);
+    assert(buf[0] == 1);
+    assert(buf[1] == 125);
 
     sim_destroy(srv.sim);
 }

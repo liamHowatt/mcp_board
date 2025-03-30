@@ -4,7 +4,7 @@
 
 void app_main(void);
 
-#define DBG_UART huart2
+// #define DBG_UART huart2
 #ifdef DBG_UART
 extern UART_HandleTypeDef DBG_UART;
 extern char logln_buf[256];

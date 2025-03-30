@@ -24,7 +24,7 @@ typedef struct {
     volatile mmn_srv_crosspoint_command_t xpoint_command;
     volatile bool xpoint_is_transferring;
 
-    volatile bool something_happened;
+    // volatile bool something_happened;
 } stm32_srv_t;
 
 typedef struct {
@@ -218,7 +218,7 @@ static const mmn_srv_cbs_t cbs = {
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
     mmn_srv_timer_isr_handler(&g_srv.srv);
-    g_srv.something_happened = true;
+    // g_srv.something_happened = true;
 }
 
 void app_main(void) {
@@ -228,7 +228,7 @@ void app_main(void) {
 
     static uint8_t aux_memory[MMN_SRV_AUX_MEMORY_SIZE(SOCKET_COUNT, BUF_SIZE)];
     static ctx_t ctxs[SOCKET_COUNT];
-    mmn_srv_init(&g_srv.srv, SOCKET_COUNT, BUF_SIZE, aux_memory, &cbs);
+    mmn_srv_init(&g_srv.srv, SOCKET_COUNT, 125, BUF_SIZE, aux_memory, &cbs);
     for(uint8_t i = 0; i < SOCKET_COUNT; i++) {
         ctxs[i].index = i;
         ctxs[i].flip = false;
@@ -244,17 +244,17 @@ void app_main(void) {
 
     while(1) {
         mmn_srv_main_loop_handler(&g_srv.srv);
-        while (1) {
-            __disable_irq();
-            if(!g_srv.something_happened) {
-                __WFI();
-            } else {
-                g_srv.something_happened = false;
-                __enable_irq();
-                break;
-            }
-            __enable_irq();
-        }
+        // while (1) {
+        //     __disable_irq();
+        //     if(!g_srv.something_happened) {
+        //         __WFI();
+        //     } else {
+        //         g_srv.something_happened = false;
+        //         __enable_irq();
+        //         break;
+        //     }
+        //     __enable_irq();
+        // }
     }
 
     // while(1) {

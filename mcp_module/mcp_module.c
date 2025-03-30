@@ -14,6 +14,7 @@ typedef struct {
     mcp_module_delay_us_cb_t delay_us_cb;
     mcp_module_wait_clk_high_cb_t wait_clk_high_cb;
     uint8_t whereami;
+    uint16_t us_delay;
 } ctx_t;
 
 struct mcp_module_driver_handle {
@@ -28,7 +29,7 @@ static void run1(ctx_t * ctx)
     while (MBB_CLI_STATUS_DONE != (status = mbb_cli_continue_byte_transfer(&ctx->bb))) {
         switch (status) {
             case MBB_CLI_STATUS_DO_DELAY:
-                ctx->delay_us_cb(ctx->uctx, 500);
+                ctx->delay_us_cb(ctx->uctx, ctx->us_delay);
                 break;
             case MBB_CLI_STATUS_WAIT_CLK_PIN_HIGH:
                 ctx->wait_clk_high_cb(ctx->uctx);
@@ -180,9 +181,20 @@ void mcp_module_run(
     cwt.ctx.delay_us_cb = delay_us_cb;
     cwt.ctx.wait_clk_high_cb = wait_clk_high_cb;
     cwt.ctx.whereami = 255;
+    cwt.ctx.us_delay = 500;
 
     write1(&cwt.ctx, 255);
     read1(&cwt.ctx); // read our token
+
+    write1(&cwt.ctx, 6); // MMN_SRV_OPCODE_GETINFO
+    uint8_t info_count = read1(&cwt.ctx);
+    if(info_count > 0) {
+        uint8_t us = read1(&cwt.ctx);
+        if(us != 255) {
+            cwt.ctx.us_delay = us;
+        }
+        while(--info_count) read1(&cwt.ctx);
+    }
 
     while(1) {
         write1(&cwt.ctx, 3); // poll

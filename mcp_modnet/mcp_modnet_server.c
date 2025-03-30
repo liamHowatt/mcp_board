@@ -179,6 +179,18 @@ static void poll_notify(mmn_srv_t * srv, uint8_t session)
 
 static void req_3_state(mmn_srv_socket_t * soc);
 
+static void req_16_state_cb(mmn_srv_socket_t * soc)
+{
+	req_3_state(soc);
+}
+static void req_16_state(mmn_srv_socket_t * soc)
+{
+	mmn_srv_t * srv = srv_from_soc(soc);
+	soc->req_16_state_info.info_len = 1;
+	soc->req_16_state_info.us_delay_of_modules = srv->us_delay_of_modules;
+	write_state(soc, sizeof(soc->req_16_state_info), (uint8_t *) &soc->req_16_state_info, req_16_state_cb);
+}
+
 static void req_15_state_cb(mmn_srv_socket_t * soc)
 {
 	req_3_state(soc);
@@ -463,6 +475,9 @@ static void req_3_state_cb(mmn_srv_socket_t * soc)
 	else if(soc->req_3_state_op == MMN_SRV_OPCODE_WHEREAMI) {
 		req_15_state(soc);
 	}
+	else if(soc->req_3_state_op == MMN_SRV_OPCODE_GETINFO) {
+		req_16_state(soc);
+	}
 }
 static void req_3_state(mmn_srv_socket_t * soc)
 {
@@ -500,11 +515,13 @@ static void req_1_state(mmn_srv_socket_t * soc)
 void mmn_srv_init(
 	mmn_srv_t * srv,
 	uint8_t socket_count,
+	uint8_t us_delay_of_modules,
 	uint8_t buf_size,
 	uint8_t * aux_memory,
 	const mmn_srv_cbs_t * cbs
 ) {
 	srv->socket_count = socket_count;
+	srv->us_delay_of_modules = us_delay_of_modules;
 	srv->token_counter = 0;
 	srv->buf_size = buf_size;
 	srv->crosspoint_is_transferring = false;
