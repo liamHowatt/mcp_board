@@ -228,7 +228,7 @@ void app_main(void) {
 
     static uint8_t aux_memory[MMN_SRV_AUX_MEMORY_SIZE(SOCKET_COUNT, BUF_SIZE)];
     static ctx_t ctxs[SOCKET_COUNT];
-    mmn_srv_init(&g_srv.srv, SOCKET_COUNT, 125, BUF_SIZE, aux_memory, &cbs);
+    mmn_srv_init(&g_srv.srv, SOCKET_COUNT, 250, BUF_SIZE, aux_memory, &cbs);
     for(uint8_t i = 0; i < SOCKET_COUNT; i++) {
         ctxs[i].index = i;
         ctxs[i].flip = false;
