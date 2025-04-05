@@ -1,4 +1,5 @@
 #include "mcp_module.h"
+#include "../digest/digest/sha2.h"
 
 #include <string.h>
 #include <assert.h>
@@ -224,10 +225,10 @@ void mcp_module_run(
 
         int protocol;
         while((protocol = try_peer_read1(&cwt)) >= 0) {
+            char fname[256];
             if(protocol == 0) { // file protocol
                 peer_write1(&cwt, 0); // we support it
                 uint8_t action = peer_read1(&cwt);
-                char fname[256];
                 if(action == 2) { // list
                     uint32_t fname_byte_count = 0;
                     for(uint32_t i = 0; i < static_file_table_size; i++)
@@ -431,6 +432,78 @@ void mcp_module_run(
                 else {
                     peer_write1(&cwt, 1); // we don't support it
                 }
+            }
+            else if(protocol == 2) { // hash protocol
+                peer_write1(&cwt, 0); // we support it
+                uint8_t fname_len = peer_read1(&cwt);
+                peer_read(&cwt, fname, fname_len);
+                fname[fname_len] = '\0';
+
+                struct sha256_state state = sha256_init;
+                union digest_state * u = (union digest_state *) &state;
+                uint8_t block[64];
+                uint8_t hash[32];
+
+                uint32_t i;
+                for(i = 0; i < static_file_table_size; i++)
+                    if(0 == strcmp(fname, static_file_table[i].name)) break;
+                if(i < static_file_table_size) {
+                    peer_write1(&cwt, 0); // OK
+
+                    uint32_t remain = static_file_table[i].content_size;
+                    const uint8_t * p = static_file_table[i].content;
+
+                    while(remain >= 64) {
+                        sha256_block(u, p);
+                        p += 64;
+                        remain -= 64;
+                    }
+                    memcpy(block, p, remain); /* because `sha256_final` uses `block` as scratch */
+                    sha256_final(u, block, remain, hash);
+
+                    peer_write(&cwt, hash, 32);
+
+                    continue;
+                }
+
+                if(!rw_fs_vtable) {
+                    peer_write1(&cwt, MCP_MODULE_RW_FS_RESULT_ENOENT);
+                    continue;
+                }
+
+                uint8_t fs_res;
+
+                fs_res = rw_fs_vtable->open(rw_fs_ctx, true, fname);
+                if(fs_res) {
+                    peer_write1(&cwt, fs_res);
+                    continue;
+                }
+
+                uint32_t actually_read;
+                while(1) {
+                    fs_res = rw_fs_vtable->read(rw_fs_ctx, block, 64, &actually_read);
+                    if(fs_res || actually_read < 64) {
+                        break;
+                    }
+                    sha256_block(u, block);
+                }
+
+                if(fs_res) {
+                    peer_write1(&cwt, fs_res);
+                    continue;
+                }
+
+                fs_res = rw_fs_vtable->close(rw_fs_ctx);
+
+                peer_write1(&cwt, fs_res);
+
+                if(fs_res) {
+                    continue;
+                }
+
+                sha256_final(u, block, actually_read, hash);
+
+                peer_write(&cwt, hash, 32);
             }
             else {
                 peer_write1(&cwt, 1); // we don't support it

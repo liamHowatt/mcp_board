@@ -29,8 +29,7 @@ static const mcp_module_stm32_pin_t ctrl_gpios[3] = {
 };
 
 static const mcp_module_static_file_table_entry_t static_file_table[] = {
-    {"WELL_DONE", NULL, 0},
-    {"info", "one\ntwo\nthree\n", 14}
+    {"info", "{\"name\":\"scr1\"}\n", sizeof("{\"name\":\"scr1\"}\n") - 1}
 };
 
 static void driver_protocol_cb(mcp_module_driver_handle_t * hdl, void * driver_protocol_ctx)

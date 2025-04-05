@@ -4,3 +4,6 @@
 [submodule "mcp_fs"]
 	path = mcp_fs
 	url = https://github.com/liamHowatt/mcp_fs.git
+[submodule "digest/digest"]
+	path = digest/digest
+	url = https://github.com/clausecker/digest.git
