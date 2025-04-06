@@ -110,9 +110,8 @@ DC C p
 
 DC D p
 
-0xff buf c!
+0xff buf c! \ end protocol
 con buf 1 mcpd_write
-con mcpd_disconnect
 
 240 320 * 2 * constant buf_sz
 buf_sz malloc dup 0<> assert constant fb
@@ -133,8 +132,14 @@ buf_sz   trans spi_trans_s.nwords + !
 	lv_display_flush_ready
 ;
 
+: delete_cb ( e -- )
+	drop
+	fb free
+	fd close 0= assert
+	con mcpd_disconnect
+;
+
 240 320 lv_display_create
 dup fb 0 buf_sz LV_DISPLAY_RENDER_MODE_DIRECT lv_display_set_buffers
-c' flush_cb lv_display_set_flush_cb
-
-\ fd close -1 <> assert
+dup c' flush_cb lv_display_set_flush_cb
+c' delete_cb LV_EVENT_DELETE 0 lv_display_add_event_cb
