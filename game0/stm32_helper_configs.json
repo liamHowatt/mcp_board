@@ -1,0 +1,23 @@
+{
+    "imports": [
+        "."
+    ],
+    "single_source_file_imports": [
+        "../mcp_bitbang/mcp_bitbang_client.c",
+        "../mcp_module/mcp_module.c",
+        "../mcp_module_stm32/mcp_module_stm32.c",
+        "../mcp_module_stm32/mcp_module_stm32_mcp_fs.c",
+        "../mcp_fs/mcp_fs.c",
+        "../digest/digest/sha2.c",
+        "../digest/digest/finalize.c"
+    ],
+    "additional_cflags": "-DMCP_MODULE_STM32_HAL_HEADER='\"../scr1/hal_header.h\"'",
+    "project_name": "stm32cubemx",
+    "pyocd_target": "STM32G030F6Px",
+    "pyocd_args": [
+    ],
+    "replace": [
+        {"file": "STM32G030F6Px_FLASH.ld", "old": "ORIGIN = 0x8000000, LENGTH = 32K", "new": "ORIGIN = 0x8000000, LENGTH = 22K"},
+        {"file": "Makefile", "old": "vpath %.c $(sort $(dir $(C_SOURCES)))", "new": "vpath %.c Src $(sort $(dir $(C_SOURCES)))"}
+    ]
+}
