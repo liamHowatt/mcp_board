@@ -7,7 +7,7 @@ con over 1 mcpd_read
 c@ constant socketno
 -1 allot
 
-con MCP_PINS_TYPE_SPI mcpd_resource_acquire
+con MCP_PINS_PERIPH_TYPE_SPI MCP_PINS_DRIVER_TYPE_SPI_RAW mcpd_resource_acquire
 dup 0 >= assert constant resource_id
 
 : route ( io_type pinno -- )
@@ -15,9 +15,9 @@ dup 0 >= assert constant resource_id
 	mcpd_resource_route 0= assert
 ;
 
-MCP_PINS_SPI_CLK  3 route
-MCP_PINS_SPI_MOSI 1 route
-MCP_PINS_SPI_CS   2 route
+MCP_PINS_PIN_SPI_CLK  3 route
+MCP_PINS_PIN_SPI_MOSI 1 route
+MCP_PINS_PIN_SPI_CS   2 route
 
 con resource_id mcpd_resource_get_path
 dup assert

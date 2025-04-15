@@ -7,3 +7,6 @@
 [submodule "digest/digest"]
 	path = digest/digest
 	url = https://github.com/clausecker/digest.git
+[submodule "lfs/littlefs-fuse"]
+	path = lfs/littlefs-fuse
+	url = https://github.com/littlefs-project/littlefs-fuse.git
