@@ -7,19 +7,30 @@ con over 1 mcpd_read
 c@ constant socketno
 -1 allot
 
-con MCP_PINS_PERIPH_TYPE_SPI MCP_PINS_DRIVER_TYPE_SPI_RAW mcpd_resource_acquire
-dup 0 >= assert constant resource_id
-
-: route ( io_type pinno -- )
-	2>r con resource_id 2r> socketno swap
+: route ( resource_id io_type pinno -- )
+	>r 2>r con 2r> socketno r>
+	\  con  resource_id  io_type  socketno  pinno
 	mcpd_resource_route 0= assert
 ;
 
-MCP_PINS_PIN_SPI_CLK  3 route
-MCP_PINS_PIN_SPI_MOSI 1 route
-MCP_PINS_PIN_SPI_CS   2 route
+\ disp
+con MCP_PINS_PERIPH_TYPE_SPI MCP_PINS_DRIVER_TYPE_SPI_RAW mcpd_resource_acquire
+dup 0 >= assert constant resource_id_disp
 
-con resource_id mcpd_resource_get_path
+\ SD Card
+con MCP_PINS_PERIPH_TYPE_SPI MCP_PINS_DRIVER_TYPE_SPI_SDCARD mcpd_resource_acquire
+dup 0 >= assert constant resource_id_sd
+
+\ disp
+resource_id_disp MCP_PINS_PIN_SPI_CLK  3 route
+resource_id_disp MCP_PINS_PIN_SPI_MOSI 1 route
+resource_id_disp MCP_PINS_PIN_SPI_CS   2 route
+
+\ SD Card
+resource_id_sd   MCP_PINS_PIN_SPI_CS   0 route
+resource_id_sd   MCP_PINS_PIN_SPI_MISO 1 route
+
+con resource_id_disp mcpd_resource_get_path
 dup assert
 O_RDONLY 0 open
 dup -1 <> assert constant fd
