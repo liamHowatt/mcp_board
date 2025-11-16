@@ -72,18 +72,19 @@
 : sh 255 ;
 : shpl 254 ;
 
-LV_KEY_UP 253 <= s" key constants too big" assert_msg
-LV_KEY_DOWN 253 <= s" key constants too big" assert_msg
-LV_KEY_RIGHT 253 <= s" key constants too big" assert_msg
-LV_KEY_LEFT 253 <= s" key constants too big" assert_msg
-LV_KEY_ESC 253 <= s" key constants too big" assert_msg
-LV_KEY_DEL 253 <= s" key constants too big" assert_msg
-LV_KEY_BACKSPACE 253 <= s" key constants too big" assert_msg
-LV_KEY_ENTER 253 <= s" key constants too big" assert_msg
-LV_KEY_NEXT 253 <= s" key constants too big" assert_msg
-LV_KEY_PREV 253 <= s" key constants too big" assert_msg
-LV_KEY_HOME 253 <= s" key constants too big" assert_msg
-LV_KEY_END 253 <= s" key constants too big" assert_msg
+: key_chk_range 253 <= s" key constants too big" assert_msg ;
+LV_KEY_UP key_chk_range
+LV_KEY_DOWN key_chk_range
+LV_KEY_RIGHT key_chk_range
+LV_KEY_LEFT key_chk_range
+LV_KEY_ESC key_chk_range
+LV_KEY_DEL key_chk_range
+LV_KEY_BACKSPACE key_chk_range
+LV_KEY_ENTER key_chk_range
+LV_KEY_NEXT key_chk_range
+LV_KEY_PREV key_chk_range
+LV_KEY_HOME key_chk_range
+LV_KEY_END key_chk_range
 
 here constant mapping
 

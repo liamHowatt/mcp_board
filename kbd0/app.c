@@ -10,11 +10,15 @@ char logln_buf[256];
 #include <assert.h>
 #include <string.h>
 
-#define APP_TOTAL_FLASH_SIZE (128 * 1024)
-#define APP_PROGRAM_FLASH_SIZE (28 * 1024)
-#define APP_FS_BLOCK_COUNT ((APP_TOTAL_FLASH_SIZE - APP_PROGRAM_FLASH_SIZE) / FLASH_PAGE_SIZE)
+#if FLASH_PAGE_SIZE != 2048
+#error flash pages are not the expected size
+#endif
+
+#define APP_FS_BLOCK_COUNT 50
 
 #define BTN_CNT 53
+
+extern const unsigned char fs_bin[];
 
 static const mcp_module_stm32_pin_t clk_dat_pins[2] = {
     {GPIOC, GPIO_PIN_3},
@@ -109,7 +113,7 @@ void app_main(void) {
     static mcp_module_stm32_mcp_fs_t mmfs;
     static uint8_t mmfs_aligned_aux_memory[MCP_MODULE_STM32_MCP_FS_AUX_MEMORY_SIZE(APP_FS_BLOCK_COUNT)] __attribute__((aligned));
 
-    res = mcp_module_stm32_mcp_fs_init(&mmfs, mmfs_aligned_aux_memory, FLASH_PAGE_NB - APP_FS_BLOCK_COUNT, APP_FS_BLOCK_COUNT);
+    res = mcp_module_stm32_mcp_fs_init(&mmfs, mmfs_aligned_aux_memory, ((uintptr_t)fs_bin - FLASH_BASE) / FLASH_PAGE_SIZE, APP_FS_BLOCK_COUNT);
     assert(res == 0);
 
     mcp_module_stm32_run(

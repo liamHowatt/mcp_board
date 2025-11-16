@@ -17,7 +17,6 @@
     "pyocd_args": [
     ],
     "replace": [
-        {"file": "STM32G070RBTx_FLASH.ld", "old": "ORIGIN = 0x8000000, LENGTH = 128K", "new": "ORIGIN = 0x8000000, LENGTH = 28K"},
         {"file": "Makefile", "old": "vpath %.c $(sort $(dir $(C_SOURCES)))", "new": "vpath %.c Src $(sort $(dir $(C_SOURCES)))"}
     ]
 }

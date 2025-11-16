@@ -151,7 +151,6 @@ def main():
         pyocd(subprocess.check_call, args.pyocd_venv_path, (
             "load",
             *args.pyocd_args,
-            *cfg.get("pyocd_args", ()),
             os.path.join(
                 CUBE_DIR,
                 "build",

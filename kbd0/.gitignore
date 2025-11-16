@@ -1,2 +1,4 @@
 stm32cubemx/*
 !stm32cubemx/stm32cubemx.ioc
+fs_bin.c
+tmp
