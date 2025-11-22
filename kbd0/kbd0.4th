@@ -1,3 +1,6 @@
+\ set to 0 or 1
+1 constant use-uart
+
 : '\n' 0x0a ;
 : sp 0x20 ;
 : '!' 0x21 ;
@@ -123,6 +126,44 @@ align here constant event
 keyboard_event_s allot
 event keyboard_event_s 0 fill
 
+use-uart buf c!
+con buf 1 mcpd_write
+
+use-uart if
+	con buf 1 mcpd_read
+	buf c@ constant socketno
+
+	con MCP_PINS_PERIPH_TYPE_UART MCP_PINS_DRIVER_TYPE_UART_RAW mcpd_resource_acquire
+	dup 0 >= s" uart acquire fail" assert_msg
+	constant resource_id
+
+	con resource_id MCP_PINS_PIN_UART_RX socketno 2 mcpd_resource_route
+	0= s" RX route fail" assert_msg
+
+	con resource_id mcpd_resource_get_path
+	dup s" get UART path fail" assert_msg
+	O_RDONLY 0 open
+	dup 0 >= s" open UART fail" assert_msg
+	constant ufd
+
+	ufd 115200 mcpd_uart_set_baud
+	0= s" baud set fail" assert_msg
+then
+
+: modnet-based-read ( -- byte )
+	con buf 1 mcpd_read
+	buf c@
+;
+
+: uart-based-read ( -- byte )
+	ufd buf 1 read
+	1 = s" uart read fail" assert_msg
+	buf c@
+;
+
+use-uart if ' uart-based-read else ' modnet-based-read then
+constant read-func
+
 variable sh_cnt 0 sh_cnt !
 variable shpl_cnt 0 shpl_cnt !
 variable sp_cnt 0 sp_cnt !
@@ -142,8 +183,7 @@ variable sp_cnt 0 sp_cnt !
 ;
 
 begin
-	con buf 1 mcpd_read
-	buf c@
+	read-func execute
 	dup 1 and
 	swap 1 rshift
 	dup key_cnt < s" invalid key value" assert_msg

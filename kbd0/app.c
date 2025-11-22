@@ -18,6 +18,9 @@ char logln_buf[256];
 
 #define BTN_CNT 53
 
+#define APP_UART huart4
+extern UART_HandleTypeDef huart4;
+
 extern const unsigned char fs_bin[];
 
 static const mcp_module_stm32_pin_t clk_dat_pins[2] = {
@@ -87,6 +90,14 @@ static const mcp_module_static_file_table_entry_t static_file_table[] = {
 
 static void driver_protocol_cb(mcp_module_driver_handle_t * hdl, void * driver_protocol_ctx)
 {
+    uint8_t use_uart;
+    mcp_module_driver_read(hdl, &use_uart, 1);
+
+    if(use_uart) {
+        uint8_t whereami = mcp_module_driver_whereami(hdl);
+        mcp_module_driver_write(hdl, &whereami, 1);
+    }
+
     static bool states[BTN_CNT];
     memset(states, true, BTN_CNT);
     while(1) {
@@ -99,7 +110,8 @@ static void driver_protocol_cb(mcp_module_driver_handle_t * hdl, void * driver_p
                 vals[val_count++] = (i << 1) | reading;
             }
         }
-        mcp_module_driver_write(hdl, vals, val_count);
+        if(use_uart) HAL_UART_Transmit(&APP_UART, vals, val_count, HAL_MAX_DELAY);
+        else mcp_module_driver_write(hdl, vals, val_count);
     }
 }
 

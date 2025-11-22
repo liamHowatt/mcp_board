@@ -6,6 +6,7 @@ include ../stm32_helper/helper.mk
 
 post_cube: fs_bin.c
 build: fs_bin.c
+clean_cube: clean
 
 fs_bin.c: kbd0.4th
 	make -C ../mcp_fs/mk_mcp_fs mk_mcp_fs
