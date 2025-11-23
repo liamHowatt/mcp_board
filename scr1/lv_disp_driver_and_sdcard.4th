@@ -159,11 +159,8 @@ set_spi_for_fb
 : flush_cb ( disp area px_map -- )
 	2drop
 	dup lv_display_flush_is_last if
-		fb buf_sz 2/
-		2dup lv_draw_sw_rgb565_swap
 		fd SPIIOC_TRANSFER seq ioctl
 		-1 <> assert
-		lv_draw_sw_rgb565_swap
 	then
 	lv_display_flush_ready
 ;
@@ -209,7 +206,7 @@ set_spi_for_fb
 ;
 
 240 320 lv_display_create
-dup LV_COLOR_FORMAT_RGB565 lv_display_set_color_format
+dup LV_COLOR_FORMAT_RGB565_SWAPPED lv_display_set_color_format
 dup fb 0 buf_sz LV_DISPLAY_RENDER_MODE_DIRECT lv_display_set_buffers
 dup c' flush_cb lv_display_set_flush_cb
 dup c' delete_cb LV_EVENT_DELETE 0 lv_display_add_event_cb
