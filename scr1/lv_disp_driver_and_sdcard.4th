@@ -64,7 +64,7 @@ set_spi_for_cmds
 ;
 
 : p ( pin val -- )
-	swap 1 lshift or
+	2 lshift or
 	buf c!
 	con buf 1 mcpd_write
 	con buf 1 mcpd_read
@@ -99,7 +99,9 @@ set_spi_for_cmds
 : col_addr_set 0x2a addr_set ;
 : row_addr_set 0x2b addr_set ;
 
-BKLT 1 p
+variable backlight_val
+10 backlight_val !
+BKLT 10 p
 
 RST 0 p
 500 ms
@@ -213,11 +215,47 @@ dup c' delete_cb LV_EVENT_DELETE 0 lv_display_add_event_cb
 dup c' res_changed_cb LV_EVENT_RESOLUTION_CHANGED 0 lv_display_add_event_cb
 constant disp
 
-: rotate_cb ( base_obj -- )
-	lv_obj_delete
+: slider_event_cb ( e -- )
+	lv_event_get_target_obj
+	lv_slider_get_value
+	BKLT over p
+	backlight_val !
+;
+
+: rotate_btn_cb ( e -- )
+	drop
 	disp lv_display_get_rotation
 	1+ 3 and
 	disp swap lv_display_set_rotation
 ;
 
-s" rotate display" drop c' rotate_cb mcp_lvgl_app_register
+: ok_btn_cb ( e -- )
+	lv_event_get_target_obj
+	lv_obj_get_parent
+	lv_obj_delete
+;
+
+: settings_app_cb ( base_obj -- )
+	dup LV_GRIDNAV_CTRL_NONE lv_gridnav_add
+	dup LV_FLEX_FLOW_COLUMN lv_obj_set_flex_flow
+	dup 10 0 lv_obj_set_style_pad_all
+	dup 10 0 lv_obj_set_style_pad_row
+
+	dup lv_slider_create
+	dup 100 lv_pct 0 lv_obj_set_style_max_width
+	dup 1 10 lv_slider_set_range
+	dup backlight_val @ 0 lv_slider_set_value
+	c' slider_event_cb LV_EVENT_VALUE_CHANGED 0 lv_obj_add_event_cb drop
+
+	dup lv_button_create
+	dup c' rotate_btn_cb LV_EVENT_CLICKED 0 lv_obj_add_event_cb drop
+	lv_label_create
+	s" rotate" drop lv_label_set_text_static
+
+	lv_button_create
+	dup c' ok_btn_cb LV_EVENT_CLICKED 0 lv_obj_add_event_cb drop
+	lv_label_create
+	s" ok" drop lv_label_set_text_static
+;
+
+s" display settings" drop c' settings_app_cb mcp_lvgl_app_register

@@ -18,3 +18,6 @@ extern char logln_buf[256];
 
 #define MICROSECOND_TIMER htim14
 extern TIM_HandleTypeDef MICROSECOND_TIMER;
+
+#define SOFTPWM_TIMER htim16
+extern TIM_HandleTypeDef SOFTPWM_TIMER;
