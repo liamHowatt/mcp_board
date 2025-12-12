@@ -127,7 +127,7 @@ normfreq setfreq
 buf 0xe9 q 0 q 0 qdowrite
 5 ms
 buf 0xe9 q 0 q 0 q
-    0xff 6 qn
+	0xff 6 qn
 	0 12 qn
 	1 qdowrite
 1 ms
@@ -257,8 +257,8 @@ buf
 0x01 qdowrite
 normfreq setfreq
 
-153600 constant parbuf_sz
-parbuf_sz malloc dup 0<> s" malloc failed" assert_msg constant parbuf
+mcp_lvgl_static_fb_size constant full_fb_sz
+0 mcp_lvgl_static_fb_acquire dup s" fb acquire failed" assert_msg constant full_fb
 LCDPI_RS LCDPI_RESET or LCDPI_RD or LCDPI_LONG or constant start_byte
 
 : x1 ( area -- x1 ) @ ;
@@ -271,52 +271,91 @@ LCDPI_RS LCDPI_RESET or LCDPI_RD or LCDPI_LONG or constant start_byte
 	    0xff and 1 writecd
 ;
 
-: 2* 2 * ;
+align here constant flush_queue queue-memsz allot
+
+: flush_thread ( arg -- ret )
+	drop
+
+	align here 20 allot
+
+	begin
+		flush_queue over queue-get
+		dup dup 16 + @
+
+		SSD1963_SET_COLUMN_ADDRESS 0 writecd
+		over x1 writecd1_uppper_lower
+		over x2 writecd1_uppper_lower
+		SSD1963_SET_PAGE_ADDRESS 0 writecd
+		over y1 writecd1_uppper_lower
+		over y2 writecd1_uppper_lower
+
+		SSD1963_WRITE_MEMORY_START 0 writecd
+
+		1- start_byte over c! settxbuf
+		lv_area_get_size
+		2* 1+ setnwords
+		trnioctl
+		buf settxbuf
+
+		flush_queue queue-task-done
+	again
+
+	0
+;
 
 : flush_cb ( disp area px_map -- )
-	SSD1963_SET_COLUMN_ADDRESS 0 writecd
-	over x1 writecd1_uppper_lower
-	over x2 writecd1_uppper_lower
-	SSD1963_SET_PAGE_ADDRESS 0 writecd
-	over y1 writecd1_uppper_lower
-	over y2 writecd1_uppper_lower
+	align here >r swap here 16 dup allot move , drop
+	flush_queue r> queue-put
+	-20 allot
+;
 
-	SSD1963_WRITE_MEMORY_START 0 writecd
-
-	dup 1- start_byte over c! settxbuf
-	swap lv_area_get_size
-	dup 2* 1+ setnwords
-	lv_draw_sw_rgb565_swap
-	trnioctl
-	buf settxbuf
-
-	lv_display_flush_ready
+: flush_wait_cb ( disp -- )
+	drop
+	flush_queue queue-join
 ;
 
 : delete_cb ( e -- )
 	drop
-	parbuf free
+	full_fb mcp_lvgl_static_fb_release
 	fd close 0= assert
 	con mcpd_disconnect
 ;
 
+: align-4-up ( ptr len -- alptr new-len )
+	swap \ len ptr
+	dup  \ len ptr ptr
+	3 + 3 invert and \ len ptr alptr
+	dup >r
+	- \ len len-delta
+	+ \ new-len
+	r> \ new-len alptr
+	swap \ alptr new-len
+;
+
+align here constant flush_queue_buf 20 allot
+flush_queue flush_queue_buf 20 1 queue-init
+0 1 ' flush_thread thread-create constant thread_hdl
+
 800 480 lv_display_create constant disp
-disp parbuf 4 + 0 parbuf_sz 4 - LV_DISPLAY_RENDER_MODE_PARTIAL lv_display_set_buffers
+disp LV_COLOR_FORMAT_RGB565_SWAPPED lv_display_set_color_format
+disp
+	full_fb                 1+ full_fb_sz 2/ 1- align-4-up >r
+	full_fb full_fb_sz 2/ + 1+ full_fb_sz 2/ 1- align-4-up
+	r> min
+	LV_DISPLAY_RENDER_MODE_PARTIAL
+	lv_display_set_buffers
 disp c' flush_cb lv_display_set_flush_cb
 disp c' delete_cb LV_EVENT_DELETE 0 lv_display_add_event_cb
-
-: lv_indev_data_t->point.x        ;
-: lv_indev_data_t->point.y    4 + ;
-: lv_indev_data_t->state     20 + ;
+disp c' flush_wait_cb lv_display_set_flush_wait_cb
 
 variable touch_x
 variable touch_y
 variable touch_state
 
 : indev_cb ( indev data -- )
-	touch_x @ over lv_indev_data_t->point.x !
-	touch_y @ over lv_indev_data_t->point.y !
-	touch_state @ over lv_indev_data_t->state !
+	touch_x @ over lv_indev_data_t.point + !
+	touch_y @ over lv_indev_data_t.point + cell+ !
+	touch_state @ over lv_indev_data_t.state + !
 	2drop
 ;
 
