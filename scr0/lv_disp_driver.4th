@@ -1,3 +1,6 @@
+\ set to 0 or 1
+1 constant use_compression
+
 mcpd_driver_connect
 0= s" mcpd_driver_connect failure" assert_msg
 constant con
@@ -37,7 +40,7 @@ spi_sequence_s callot constant seq
 1        seq spi_sequence_s.ntrans + c!
 trans    seq spi_sequence_s.trans + !
 : setfreq seq spi_sequence_s.frequency + ! ;
-48000000 constant normfreq
+30000000 constant normfreq
 
 22 constant buf_size
 here buf_size allot constant buf
@@ -257,9 +260,121 @@ buf
 0x01 qdowrite
 normfreq setfreq
 
+
+: pre_mask_value ( hw -- hw )
+	0xffdf and
+;
+
+: compute_value ( hw -- hw )
+	dup 0xffc0 and 2/
+	swap 0x001f and
+	or
+;
+
+: pre_inc2 ( addr -- addr+2 addr+2 )
+	1+ 1+ dup
+;
+
+: store ( dst val -- )
+	2dup swap 1+ c!
+	8 rshift swap c!
+;
+
+: xchg-dp ( new-dp -- old-dp )
+	here tuck - allot
+;
+
+align here constant codes
+	0xaaab , 0x80ff , 0x8cff , 0x8ccf , 0x98c9 , 0xaabf , 0xaaaf , \ 0xaaab ,
+variable last_value
+variable start
+variable repeat_start
+
+1 , -4 allot here c@ if \ detect endian
+	\ little endian
+	0xabaaabaa
+	0xabaa
+else	
+	\ big endian
+	0xaaabaaab
+	0xaaab
+then
+constant code7
+constant code7code7
+
+: send_repeat_codes ( src dst -- src dst )
+
+	over repeat_start @ - 2/ 1-
+
+	?dup 0= if exit then
+
+	dup 448 > if \ 7 * 64
+		over 2 and 0= if
+			7 - swap
+			1+ 1+ code7 over w!
+			swap
+		then
+
+		swap 1+ 1+ xchg-dp swap
+		\ src old-dp count
+		begin
+			448 -
+			code7code7
+			dup , dup , dup , dup , dup , dup , dup , dup ,
+			dup , dup , dup , dup , dup , dup , dup , dup ,
+			dup , dup , dup , dup , dup , dup , dup , dup ,
+			dup , dup , dup , dup , dup , dup , dup ,     ,
+		dup 448 < until
+		swap xchg-dp 1- 1- swap
+	then
+
+	begin dup 7 >= while
+		7 -
+		swap
+		1+ 1+ code7 over w!
+		swap
+	repeat
+
+	?dup if
+		swap 1+ 1+ dup rot cells codes + @ store
+	then
+;
+
+: lcdpi_compress ( src dst src_len -- out_len )
+	>r
+	dup start !
+	swap pre_inc2 w@ last_value ! swap
+	pre_inc2 last_value @ pre_mask_value compute_value store
+	swap dup repeat_start !
+	\ dst src
+	r> 1 do
+		1+ 1+ dup w@ last_value @ - if
+			dup w@ last_value !
+			swap
+			\ src dst
+
+			send_repeat_codes
+
+			1+ 1+ dup last_value @ pre_mask_value compute_value store
+
+			swap dup repeat_start !
+			\ dst src
+		then
+	loop
+	-2 repeat_start +!
+	swap
+	\ src dst
+
+	send_repeat_codes
+
+	nip
+	start @ -
+;
+
+
 mcp_lvgl_static_fb_size constant full_fb_sz
 0 mcp_lvgl_static_fb_acquire dup s" fb acquire failed" assert_msg constant full_fb
-LCDPI_RS LCDPI_RESET or LCDPI_RD or LCDPI_LONG or constant start_byte
+LCDPI_RS LCDPI_RESET or LCDPI_RD or LCDPI_LONG or use_compression if LCDPI_BLOCK or then constant start_byte
 
 : x1 ( area -- x1 ) @ ;
 : y1 ( area -- y1 ) 4 + @ ;
@@ -291,11 +406,23 @@ align here constant flush_queue queue-memsz allot
 
 		SSD1963_WRITE_MEMORY_START 0 writecd
 
-		1- start_byte over c! settxbuf
-		lv_area_get_size
-		2* 1+ setnwords
-		trnioctl
-		buf settxbuf
+		use_compression if
+			1-
+			start_byte over c!
+			dup settxbuf
+			1- dup
+			rot lv_area_get_size
+			lcdpi_compress
+			1- setnwords
+			trnioctl
+			buf settxbuf
+		else
+			1- start_byte over c! settxbuf
+			lv_area_get_size
+			2* 1+ setnwords
+			trnioctl
+			buf settxbuf
+		then
 
 		flush_queue queue-task-done
 	again
@@ -337,7 +464,7 @@ flush_queue flush_queue_buf 20 1 queue-init
 0 1 ' flush_thread thread-create constant thread_hdl
 
 800 480 lv_display_create constant disp
-disp LV_COLOR_FORMAT_RGB565_SWAPPED lv_display_set_color_format
+disp use_compression if LV_COLOR_FORMAT_RGB565 else LV_COLOR_FORMAT_RGB565_SWAPPED then lv_display_set_color_format
 disp
 	full_fb                 1+ full_fb_sz 2/ 1- align-4-up >r
 	full_fb full_fb_sz 2/ + 1+ full_fb_sz 2/ 1- align-4-up
@@ -374,12 +501,12 @@ lv_indev_create constant indev
 		dup 0x3ff and swap
 		10 rshift 0x3ff and
 
-		2dup ." x: " . ." y: " . cr
+		\ 2dup ." x: " . ." y: " . cr
 		799 * 1023 / touch_x !
 		1023 swap - 479 * 1023 / touch_y !
 		LV_INDEV_STATE_PRESSED touch_state !
 	else
-		." pen up" cr
+		\ ." pen up" cr
 		LV_INDEV_STATE_RELEASED touch_state !
 	then
 
