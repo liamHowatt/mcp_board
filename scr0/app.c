@@ -13,6 +13,9 @@ char logln_buf[256];
 #define APP_PROGRAM_FLASH_SIZE (22 * 1024)
 #define APP_FS_BLOCK_COUNT ((APP_TOTAL_FLASH_SIZE - APP_PROGRAM_FLASH_SIZE) / FLASH_PAGE_SIZE)
 
+#define APP_UART huart2
+extern UART_HandleTypeDef huart2;
+
 struct xyp {
     uint32_t x;
     uint32_t y;
@@ -48,6 +51,9 @@ static void read_xyp(struct xyp *xyp) {
 
 static void driver_protocol_cb(mcp_module_driver_handle_t * hdl, void * driver_protocol_ctx)
 {
+    uint8_t use_uart;
+    mcp_module_driver_read(hdl, &use_uart, 1);
+
     uint8_t whereami = mcp_module_driver_whereami(hdl);
     mcp_module_driver_write(hdl, &whereami, 1);
 
@@ -71,7 +77,8 @@ static void driver_protocol_cb(mcp_module_driver_handle_t * hdl, void * driver_p
             packet >>= 8;
             buf[2] = packet;
 
-            mcp_module_driver_write(hdl, buf, 3);
+            if(use_uart) HAL_UART_Transmit(&APP_UART, buf, 3, HAL_MAX_DELAY);
+            else mcp_module_driver_write(hdl, buf, 3);
 
             read_xyp(&xyp);
         } while(xyp.pen);
@@ -79,7 +86,8 @@ static void driver_protocol_cb(mcp_module_driver_handle_t * hdl, void * driver_p
         buf[0] = 0;
         buf[1] = 0;
         buf[2] = 0;
-        mcp_module_driver_write(hdl, buf, 3);
+        if(use_uart) HAL_UART_Transmit(&APP_UART, buf, 3, HAL_MAX_DELAY);
+        else mcp_module_driver_write(hdl, buf, 3);
     }
 }
 

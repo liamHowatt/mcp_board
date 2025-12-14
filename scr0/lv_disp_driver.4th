@@ -1,14 +1,22 @@
 \ set to 0 or 1
-1 constant use_compression
+0 constant use_compression
+1 constant use_uart
+
+\ max 48 MHz
+48000000 constant normfreq
+
+22 constant buf_size
+here buf_size allot constant buf
 
 mcpd_driver_connect
 0= s" mcpd_driver_connect failure" assert_msg
 constant con
 
-here 1 allot
-con over 1 mcpd_read
-c@ constant socketno
--1 allot
+use_uart buf c!
+con buf 1 mcpd_write
+
+con buf 1 mcpd_read
+buf c@ constant socketno
 
 con MCP_PINS_PERIPH_TYPE_SPI MCP_PINS_DRIVER_TYPE_SPI_RAW mcpd_resource_acquire
 dup 0 >= s" SPI resource acquire failure" assert_msg constant resource_id
@@ -40,10 +48,6 @@ spi_sequence_s callot constant seq
 1        seq spi_sequence_s.ntrans + c!
 trans    seq spi_sequence_s.trans + !
 : setfreq seq spi_sequence_s.frequency + ! ;
-30000000 constant normfreq
-
-22 constant buf_size
-here buf_size allot constant buf
 
 : settxbuf  trans spi_trans_s.txbuffer + ! ;
 : setrxbuf  trans spi_trans_s.rxbuffer + ! ;
@@ -445,6 +449,7 @@ align here constant flush_queue queue-memsz allot
 	drop
 	full_fb mcp_lvgl_static_fb_release
 	fd close 0= assert
+	\ TODO close ufd, remove poll, and join thread
 	con mcpd_disconnect
 ;
 
@@ -475,6 +480,24 @@ disp c' flush_cb lv_display_set_flush_cb
 disp c' delete_cb LV_EVENT_DELETE 0 lv_display_add_event_cb
 disp c' flush_wait_cb lv_display_set_flush_wait_cb
 
+use_uart if
+	con MCP_PINS_PERIPH_TYPE_UART MCP_PINS_DRIVER_TYPE_UART_RAW mcpd_resource_acquire
+	dup 0 >= s" uart acquire fail" assert_msg
+	constant uart_resource_id
+
+	con uart_resource_id MCP_PINS_PIN_UART_RX socketno 0 mcpd_resource_route
+	0= s" RX route fail" assert_msg
+
+	con uart_resource_id mcpd_resource_get_path
+	dup s" get UART path fail" assert_msg
+	O_RDONLY 0 open
+	dup 0 >= s" open UART fail" assert_msg
+	constant ufd
+
+	ufd 115200 mcpd_uart_set_baud
+	0= s" baud set fail" assert_msg
+then
+
 variable touch_x
 variable touch_y
 variable touch_state
@@ -488,9 +511,7 @@ variable touch_state
 
 lv_indev_create constant indev
 
-: read_cb ( user_data -- )
-	drop
-
+: read_common ( -- )
 	buf 2 + c@
 	8 lshift
 	buf 1+ c@ or
@@ -502,8 +523,8 @@ lv_indev_create constant indev
 		10 rshift 0x3ff and
 
 		\ 2dup ." x: " . ." y: " . cr
-		799 * 1023 / touch_x !
-		1023 swap - 479 * 1023 / touch_y !
+		70 960 0 799 lv_map touch_x !
+		85 915 479 0 lv_map touch_y !
 		LV_INDEV_STATE_PRESSED touch_state !
 	else
 		\ ." pen up" cr
@@ -511,8 +532,47 @@ lv_indev_create constant indev
 	then
 
 	indev lv_indev_read
+;
 
-	con buf 3 c' read_cb 0 mcp_lvgl_async_mcpd_read
+: readall ( fd buf cnt -- )
+	begin ?dup while
+		2 pick 2 pick 2 pick read dup 0> s" readall read was not > 0" assert_msg
+		dup >r
+		-
+		swap r> + swap
+	repeat
+	2drop
+;
+: read_uart_cb ( handle fd revents user_data -- )
+	drop
+	EPOLLIN = s" uart epoll revent was not EPOLLIN" assert_msg
+	2drop
+
+	ufd buf 3 readall
+
+	begin
+		read_common
+
+		ufd 0 mcpd_uart_set_blocking 0= s" uart set non-blocking fail" assert_msg
+		ufd buf 3 read
+		ufd 1 mcpd_uart_set_blocking 0= s" uart set blocking fail" assert_msg
+
+		dup 0< if
+			drop
+			exit
+		then
+
+		>r
+		ufd buf r@ + 3 r> - readall
+	again
+;
+
+: read_mcp_cb ( user_data -- )
+	drop
+
+	read_common
+
+	con buf 3 c' read_mcp_cb 0 mcp_lvgl_async_mcpd_read
 ;
 
 indev LV_INDEV_TYPE_POINTER lv_indev_set_type
@@ -526,6 +586,10 @@ lv_screen_active lv_image_create
 dup LV_SYMBOL_GPS lv_image_set_src
 indev swap lv_indev_set_cursor
 
-con buf 3 c' read_cb 0 mcp_lvgl_async_mcpd_read
+use_uart if
+	ufd c' read_uart_cb EPOLLIN 0 mcp_lvgl_poll_add drop
+else
+	con buf 3 c' read_mcp_cb 0 mcp_lvgl_async_mcpd_read
+then
 
 depth 0= s" oops, something is left on the stack" assert_msg
