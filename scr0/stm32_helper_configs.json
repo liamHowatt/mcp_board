@@ -9,15 +9,17 @@
         "../mcp_module_stm32/mcp_module_stm32_mcp_fs.c",
         "../mcp_fs/mcp_fs.c",
         "../digest/digest/sha2.c",
-        "../digest/digest/finalize.c"
+        "../digest/digest/finalize.c",
+        "../heatshrink/heatshrink_decoder.c",
+        "../heatshrink/heatshrink_encoder.c"
     ],
-    "additional_cflags": "-DMCP_MODULE_STM32_HAL_HEADER='\"../scr0/hal_header.h\"'",
+    "additional_cflags": "-DMCP_MODULE_STM32_HAL_HEADER='\"../scr0/hal_header.h\"' -DHEATSHRINK_DYNAMIC_ALLOC=0 -DHEATSHRINK_USE_INDEX=0 -DHEATSHRINK_STATIC_WINDOW_BITS=10",
     "project_name": "stm32cubemx",
     "pyocd_target": "STM32G030F6Px",
     "pyocd_args": [
     ],
     "replace": [
-        {"file": "STM32G030F6Px_FLASH.ld", "old": "ORIGIN = 0x8000000, LENGTH = 32K", "new": "ORIGIN = 0x8000000, LENGTH = 22K"},
+        {"file": "STM32G030F6Px_FLASH.ld", "old": ">RAM AT> FLASH", "new": ">RAM AT> FLASH\n\n  .flashend : { *(.flashend) } >FLASH"},
         {"file": "Makefile", "old": "vpath %.c $(sort $(dir $(C_SOURCES)))", "new": "vpath %.c Src $(sort $(dir $(C_SOURCES)))"}
     ]
 }

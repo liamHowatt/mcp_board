@@ -1,9 +1,9 @@
 \ set to 0 or 1
-0 constant use_compression
+1 constant use_compression
 1 constant use_uart
 
 \ max 48 MHz
-48000000 constant normfreq
+10000000 constant normfreq
 
 22 constant buf_size
 here buf_size allot constant buf
@@ -48,8 +48,10 @@ spi_sequence_s callot constant seq
 1        seq spi_sequence_s.ntrans + c!
 trans    seq spi_sequence_s.trans + !
 : setfreq seq spi_sequence_s.frequency + ! ;
+: getfreq seq spi_sequence_s.frequency + @ ;
 
 : settxbuf  trans spi_trans_s.txbuffer + ! ;
+: gettxbuf  trans spi_trans_s.txbuffer + @ ;
 : setrxbuf  trans spi_trans_s.rxbuffer + ! ;
 : setnwords trans spi_trans_s.nwords + ! ;
 buf settxbuf
@@ -116,6 +118,44 @@ LCDPI_RESET LCDPI_RD or constant LCDPI_RESET_or_LCDPI_RD
 : 0wcd1 ( value -- ) 0 writecd1ms ;
 : 1wcd1 ( value -- ) 1 writecd1ms ;
 
+: set_brightness ( val0-31 -- )
+	gettxbuf getfreq 2>r
+	buf settxbuf
+	500000 setfreq
+
+	buf
+	0xe9 q
+	0xff q
+	0xff q
+	0x03 q
+	0x3f q
+	0x3f q
+	0x3f q
+	0x03 q
+	0x03 q
+	0x3f q
+	0x03 q
+	0x00 q
+	0xff q
+	0x03 q
+	0x03 q
+	0x03 q
+
+	5 0 do
+		over
+		1 4 i - lshift
+		and
+		if 0x3f else 0x03 then
+		q
+	loop
+
+	0x01 qdowrite
+
+	2r> setfreq settxbuf
+
+	drop
+;
+
 16000000 setfreq
 
 150 ms \ just in case
@@ -125,7 +165,7 @@ buf LCDPI_RD q 0 q 0 qdowrite
 50 ms
 
 32000000 setfreq
-." product code: " read1 . cr
+read1 dup 170 <> if ." warning: display product code was not 170. it was " dup . cr then drop
 normfreq setfreq
 
 \ init onewire
@@ -238,30 +278,9 @@ buf LCDPI_RESET_or_LCDPI_RD q 0 q 0 qdowrite
 
 \ tps61165 set brightness
 150 ms \ just in case
-500000 setfreq
-buf
-0xe9 q
-0xff q
-0xff q
-0x03 q
-0x3f q
-0x3f q
-0x3f q
-0x03 q
-0x03 q
-0x3f q
-0x03 q
-0x00 q
-0xff q
-0x03 q
-0x03 q
-0x03 q
-0x3f q
-0x3f q
-0x3f q
-0x3f q
-0x3f q
-0x01 qdowrite
+variable backlight_val
+31 dup backlight_val ! set_brightness
+
 normfreq setfreq
 
 
@@ -289,7 +308,7 @@ normfreq setfreq
 ;
 
 align here constant codes
-	0xaaab , 0x80ff , 0x8cff , 0x8ccf , 0x98c9 , 0xaabf , 0xaaaf , \ 0xaaab ,
+	0xaaab w, 0x80ff w, 0x8cff w, 0x8ccf w, 0x98c9 w, 0xaabf w, 0xaaaf w, \ 0xaaab w,
 variable last_value
 variable start
 variable repeat_start
@@ -340,7 +359,7 @@ constant code7code7
 	repeat
 
 	?dup if
-		swap 1+ 1+ dup rot cells codes + @ store
+		swap 1+ 1+ dup rot 2* codes + @ store
 	then
 ;
 
@@ -391,38 +410,44 @@ LCDPI_RS LCDPI_RESET or LCDPI_RD or LCDPI_LONG or use_compression if LCDPI_BLOCK
 ;
 
 align here constant flush_queue queue-memsz allot
+21 constant flush_queue_elem_size
+align here constant flush_queue_buf flush_queue_elem_size allot
+flush_queue flush_queue_buf flush_queue_elem_size 1 queue-init
 
 : flush_thread ( arg -- ret )
 	drop
 
-	align here 20 allot
+	align here flush_queue_elem_size allot
 
 	begin
 		flush_queue over queue-get
-		dup dup 16 + @
 
-		SSD1963_SET_COLUMN_ADDRESS 0 writecd
-		over x1 writecd1_uppper_lower
-		over x2 writecd1_uppper_lower
-		SSD1963_SET_PAGE_ADDRESS 0 writecd
-		over y1 writecd1_uppper_lower
-		over y2 writecd1_uppper_lower
+		SSD1963_SET_PAGE_ADDRESS SSD1963_SET_COLUMN_ADDRESS 2 pick 20 + c@ 1 and if swap then 2>r
+
+		r> 0 writecd
+		dup x1 writecd1_uppper_lower
+		dup x2 writecd1_uppper_lower
+		r> 0 writecd
+		dup y1 writecd1_uppper_lower
+		dup y2 writecd1_uppper_lower
 
 		SSD1963_WRITE_MEMORY_START 0 writecd
+
+		dup 16 + @
 
 		use_compression if
 			1-
 			start_byte over c!
 			dup settxbuf
 			1- dup
-			rot lv_area_get_size
+			2 pick lv_area_get_size
 			lcdpi_compress
 			1- setnwords
 			trnioctl
 			buf settxbuf
 		else
 			1- start_byte over c! settxbuf
-			lv_area_get_size
+			dup lv_area_get_size
 			2* 1+ setnwords
 			trnioctl
 			buf settxbuf
@@ -431,13 +456,15 @@ align here constant flush_queue queue-memsz allot
 		flush_queue queue-task-done
 	again
 
+	drop flush_queue_elem_size negate allot
+
 	0
 ;
 
 : flush_cb ( disp area px_map -- )
-	align here >r swap here 16 dup allot move , drop
+	align here >r swap here 16 dup allot move , lv_display_get_rotation c,
 	flush_queue r> queue-put
-	-20 allot
+	flush_queue_elem_size negate allot
 ;
 
 : flush_wait_cb ( disp -- )
@@ -453,6 +480,26 @@ align here constant flush_queue queue-memsz allot
 	con mcpd_disconnect
 ;
 
+: res_changed_cb ( e -- )
+	lv_event_get_target
+	lv_display_get_rotation
+	dup 0= if
+		0
+	else dup 1 = if
+		0x21
+	else dup 2 = if
+		0x03
+	else dup 3 = if
+		0x22
+	else
+		s" invalid display rotation" panic_msg
+	then then then then
+	nip
+
+	0x36 0wcd1 \ rotation: SSD1963_SET_ADDRESS_MODE
+	1wcd1
+;
+
 : align-4-up ( ptr len -- alptr new-len )
 	swap \ len ptr
 	dup  \ len ptr ptr
@@ -464,8 +511,6 @@ align here constant flush_queue queue-memsz allot
 	swap \ alptr new-len
 ;
 
-align here constant flush_queue_buf 20 allot
-flush_queue flush_queue_buf 20 1 queue-init
 0 1 ' flush_thread thread-create constant thread_hdl
 
 800 480 lv_display_create constant disp
@@ -479,6 +524,8 @@ disp
 disp c' flush_cb lv_display_set_flush_cb
 disp c' delete_cb LV_EVENT_DELETE 0 lv_display_add_event_cb
 disp c' flush_wait_cb lv_display_set_flush_wait_cb
+disp c' res_changed_cb LV_EVENT_RESOLUTION_CHANGED 0 lv_display_add_event_cb
+disp 3 lv_display_set_rotation
 
 use_uart if
 	con MCP_PINS_PERIPH_TYPE_UART MCP_PINS_DRIVER_TYPE_UART_RAW mcpd_resource_acquire
@@ -591,5 +638,63 @@ use_uart if
 else
 	con buf 3 c' read_mcp_cb 0 mcp_lvgl_async_mcpd_read
 then
+
+: slider_event_cb ( e -- )
+	lv_event_get_target_obj
+	lv_slider_get_value
+	dup backlight_val !
+	set_brightness
+;
+
+: rotate_btn_cb ( e -- )
+	drop
+	disp lv_display_get_rotation
+	1+ 3 and
+	disp swap lv_display_set_rotation
+;
+
+: pointer_checkbox_cb ( e -- )
+	indev lv_indev_get_cursor
+	LV_OBJ_FLAG_HIDDEN
+	rot
+	lv_event_get_target_obj
+	LV_STATE_CHECKED lv_obj_has_state
+	1 xor lv_obj_set_flag
+;
+
+: ok_btn_cb ( e -- )
+	lv_event_get_target_obj
+	lv_obj_get_parent
+	lv_obj_delete
+;
+
+: settings_app_cb ( base_obj -- )
+	dup LV_FLEX_FLOW_COLUMN lv_obj_set_flex_flow
+	dup 40 0 lv_obj_set_style_pad_all
+	dup 20 0 lv_obj_set_style_pad_row
+
+	dup lv_slider_create
+	dup 100 lv_pct 0 lv_obj_set_style_max_width
+	dup 1 31 lv_slider_set_range
+	dup backlight_val @ 0 lv_slider_set_value
+	c' slider_event_cb LV_EVENT_VALUE_CHANGED 0 lv_obj_add_event_cb drop
+
+	dup lv_button_create
+	dup c' rotate_btn_cb LV_EVENT_CLICKED 0 lv_obj_add_event_cb drop
+	lv_label_create
+	s" rotate" drop lv_label_set_text_static
+
+	dup lv_checkbox_create
+	dup s" show touch pointer" drop lv_checkbox_set_text_static
+	dup LV_STATE_CHECKED indev lv_indev_get_cursor LV_OBJ_FLAG_HIDDEN lv_obj_has_flag 1 xor lv_obj_set_state
+	c' pointer_checkbox_cb LV_EVENT_VALUE_CHANGED 0 lv_obj_add_event_cb drop
+
+	lv_button_create
+	dup c' ok_btn_cb LV_EVENT_CLICKED 0 lv_obj_add_event_cb drop
+	lv_label_create
+	s" ok" drop lv_label_set_text_static
+;
+
+s" display settings" drop c' settings_app_cb mcp_lvgl_app_register
 
 depth 0= s" oops, something is left on the stack" assert_msg

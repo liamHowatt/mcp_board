@@ -1,5 +1,7 @@
 #include "mcp_module_stm32_mcp_fs.h"
 
+#include <assert.h>
+
 #ifdef FLASH_BANK_2
 #warning Multiple flash banks are present. Assuming FLASH_BANK_1.
 #endif
@@ -82,6 +84,16 @@ int mcp_module_stm32_mcp_fs_init(
     return mfs_mount(&mmfs->mfs, &mmfs->conf);
 }
 
+int mcp_module_stm32_mcp_fs_heatshrink_init(
+    mcp_module_stm32_mcp_fs_heatshrink_t * mmfs,
+    void * aligned_aux_memory,
+    int first_block_page_number,
+    int block_count
+)
+{
+    return mcp_module_stm32_mcp_fs_init(&mmfs->base, aligned_aux_memory, first_block_page_number, block_count);
+}
+
 static mcp_module_rw_fs_result_t translate_error(int mfs_error)
 {
     switch(mfs_error) {
@@ -138,6 +150,150 @@ static mcp_module_rw_fs_result_t op_write(void * vmmfs, const void * src, uint32
     return MCP_MODULE_RW_FS_RESULT_OK;
 }
 
+static mcp_module_rw_fs_result_t op_open_heatshrink(void * vmmfs, bool is_read, const char *fname)
+{
+    mcp_module_stm32_mcp_fs_heatshrink_t * mmfs = vmmfs;
+    mmfs->is_read = is_read;
+    if(is_read) {
+        mmfs->buf_len = 0;
+        heatshrink_decoder_reset(&mmfs->decoder);
+    } else {
+        mmfs->write_needs_finalize = true;
+        heatshrink_encoder_reset(&mmfs->encoder);
+    }
+    return op_open(vmmfs, is_read, fname);
+}
+
+static mcp_module_rw_fs_result_t op_close_heatshrink(void * vmmfs)
+{
+    int res;
+    size_t hs_actual;
+    mcp_module_stm32_mcp_fs_heatshrink_t * mmfs = vmmfs;
+
+    mcp_module_rw_fs_result_t write_res = MCP_MODULE_RW_FS_RESULT_OK;
+
+    if(!mmfs->is_read && mmfs->write_needs_finalize) {
+        while(1) {
+            HSE_finish_res finish_res = heatshrink_encoder_finish(&mmfs->encoder);
+            assert(finish_res >= 0);
+
+            if(finish_res == HSER_FINISH_DONE) break;
+
+            HSE_poll_res poll_res = heatshrink_encoder_poll(
+                &mmfs->encoder,
+                mmfs->buf,
+                sizeof(mmfs->buf),
+                &hs_actual
+            );
+            assert(poll_res >= 0);
+
+            res = mfs_write(&mmfs->base.mfs, mmfs->buf, hs_actual);
+            if(res < 0) {
+                write_res = translate_error(res);
+                break;
+            }
+        }
+    }
+
+    mcp_module_rw_fs_result_t close_res = op_close(vmmfs);
+    return write_res ? write_res : close_res;
+}
+
+static mcp_module_rw_fs_result_t op_read_heatshrink(void * vmmfs, void * dst, uint32_t size, uint32_t * actually_read)
+{
+    int res;
+    size_t hs_actual;
+    mcp_module_stm32_mcp_fs_heatshrink_t * mmfs = vmmfs;
+
+    uint32_t total_read = 0;
+    while(size) {
+        while(mmfs->buf_len) {
+            HSD_sink_res sink_res = heatshrink_decoder_sink(
+                &mmfs->decoder,
+                mmfs->buf + mmfs->buf_ofs,
+                mmfs->buf_len,
+                &hs_actual
+            );
+            assert(sink_res >= 0);
+            mmfs->buf_len -= hs_actual;
+            mmfs->buf_ofs += hs_actual;
+
+            if(sink_res == HSDR_SINK_FULL) break;
+        }
+
+        while(size) {
+            HSD_poll_res poll_res = heatshrink_decoder_poll(
+                &mmfs->decoder,
+                dst,
+                size,
+                &hs_actual
+            );
+            assert(poll_res >= 0);
+            size -= hs_actual;
+            dst += hs_actual;
+            total_read += hs_actual;
+
+            if(poll_res == HSDR_POLL_EMPTY) break;
+        }
+
+        if(mmfs->buf_len) continue;
+
+        res = mfs_read(&mmfs->base.mfs, mmfs->buf, sizeof(mmfs->buf));
+        if(res < 0) return translate_error(res);
+        mmfs->buf_len = res;
+        mmfs->buf_ofs = 0;
+
+        if(res == 0) {
+            HSD_finish_res finish_res = heatshrink_decoder_finish(&mmfs->decoder);
+            assert(finish_res >= 0);
+
+            if(finish_res == HSDR_FINISH_DONE) break;
+        }
+    }
+
+    *actually_read = total_read;
+    return MCP_MODULE_RW_FS_RESULT_OK;
+}
+
+static mcp_module_rw_fs_result_t op_write_heatshrink(void * vmmfs, const void * src, uint32_t size)
+{
+    int res;
+    size_t hs_actual;
+    mcp_module_stm32_mcp_fs_heatshrink_t * mmfs = vmmfs;
+
+    while(size) {
+        HSE_sink_res sink_res = heatshrink_encoder_sink(
+            &mmfs->encoder,
+            (uint8_t *) src, /* it doesn't write to it despite the parameter not being const */
+            size,
+            &hs_actual
+        );
+        assert(sink_res >= 0);
+        size -= hs_actual;
+        src += hs_actual;
+
+        while(1) {
+            HSE_poll_res poll_res = heatshrink_encoder_poll(
+                &mmfs->encoder,
+                mmfs->buf,
+                sizeof(mmfs->buf),
+                &hs_actual
+            );
+            assert(poll_res >= 0);
+
+            res = mfs_write(&mmfs->base.mfs, mmfs->buf, hs_actual);
+            if(res < 0) {
+                mmfs->write_needs_finalize = false;
+                return translate_error(res);
+            }
+
+            if(poll_res == HSER_POLL_EMPTY) break;
+        }
+    }
+
+    return MCP_MODULE_RW_FS_RESULT_OK;
+}
+
 const mcp_module_rw_fs_vtable_t mcp_module_stm32_mcp_fs_rw_fs_vtable = {
     .list = op_list,
     .delete = op_delete,
@@ -145,4 +301,13 @@ const mcp_module_rw_fs_vtable_t mcp_module_stm32_mcp_fs_rw_fs_vtable = {
     .close = op_close,
     .read = op_read,
     .write = op_write
+};
+
+const mcp_module_rw_fs_vtable_t mcp_module_stm32_mcp_fs_heatshrink_rw_fs_vtable = {
+    .list = op_list,
+    .delete = op_delete,
+    .open = op_open_heatshrink,
+    .close = op_close_heatshrink,
+    .read = op_read_heatshrink,
+    .write = op_write_heatshrink
 };

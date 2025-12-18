@@ -4,7 +4,7 @@
     ],
     "single_source_file_imports": [
         "../mcp_crosspoint/crosspoint_bin_compressed.c",
-        "heatshrink/heatshrink_decoder.c"
+        "../heatshrink/heatshrink_decoder.c"
     ],
     "additional_cflags": "-DHEATSHRINK_DYNAMIC_ALLOC=0",
     "project_name": "stm32cubemx",

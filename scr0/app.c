@@ -9,12 +9,16 @@ char logln_buf[256];
 
 #include <assert.h>
 
-#define APP_TOTAL_FLASH_SIZE (32 * 1024)
-#define APP_PROGRAM_FLASH_SIZE (22 * 1024)
-#define APP_FS_BLOCK_COUNT ((APP_TOTAL_FLASH_SIZE - APP_PROGRAM_FLASH_SIZE) / FLASH_PAGE_SIZE)
+#if FLASH_PAGE_SIZE != 2048
+#error flash pages are not the expected size
+#endif
+
+#define APP_FS_BLOCK_COUNT 4
 
 #define APP_UART huart2
 extern UART_HandleTypeDef huart2;
+
+extern const unsigned char fs_bin[];
 
 struct xyp {
     uint32_t x;
@@ -98,10 +102,10 @@ void app_main(void) {
 
     HAL_TIM_Base_Start(&MICROSECOND_TIMER);
 
-    static mcp_module_stm32_mcp_fs_t mmfs;
+    static mcp_module_stm32_mcp_fs_heatshrink_t mmfs;
     static uint8_t mmfs_aligned_aux_memory[MCP_MODULE_STM32_MCP_FS_AUX_MEMORY_SIZE(APP_FS_BLOCK_COUNT)] __attribute__((aligned));
 
-    res = mcp_module_stm32_mcp_fs_init(&mmfs, mmfs_aligned_aux_memory, FLASH_PAGE_NB - APP_FS_BLOCK_COUNT, APP_FS_BLOCK_COUNT);
+    res = mcp_module_stm32_mcp_fs_heatshrink_init(&mmfs, mmfs_aligned_aux_memory, ((uintptr_t)fs_bin - FLASH_BASE) / FLASH_PAGE_SIZE, APP_FS_BLOCK_COUNT);
     assert(res == 0);
 
     mcp_module_stm32_run(
@@ -110,7 +114,7 @@ void app_main(void) {
         static_file_table,
         sizeof(static_file_table) / sizeof(mcp_module_static_file_table_entry_t),
         &mmfs,
-        &mcp_module_stm32_mcp_fs_rw_fs_vtable,
+        &mcp_module_stm32_mcp_fs_heatshrink_rw_fs_vtable,
         NULL,
         driver_protocol_cb
     );

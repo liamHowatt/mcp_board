@@ -4,8 +4,8 @@ crosspoint.bin: crosspoint.v
 	/home/liam/oss-cad-suite/bin/icepack crosspoint.asc crosspoint.bin
 
 crosspoint_bin_compressed: crosspoint.bin
-	make -C ../base_fpga_flasher/heatshrink heatshrink
-	../base_fpga_flasher/heatshrink/heatshrink -e -w 8 -l 4 crosspoint.bin crosspoint_bin_compressed
+	make -C ../heatshrink heatshrink
+	../heatshrink/heatshrink -e -w 8 -l 4 crosspoint.bin crosspoint_bin_compressed
 
 crosspoint_bin_compressed.c: crosspoint_bin_compressed
 	echo -n 'const ' > crosspoint_bin_compressed.c
