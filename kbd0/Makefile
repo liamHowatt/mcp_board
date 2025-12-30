@@ -8,9 +8,9 @@ post_cube: fs_bin.c
 build: fs_bin.c
 clean_cube: clean
 
-fs_bin.c: kbd0.4th
+fs_bin.c: main.4th
 	make -C ../mcp_fs/mk_mcp_fs mk_mcp_fs
-	../mcp_fs/mk_mcp_fs/mk_mcp_fs 2048 50 tmp kbd0.4th
+	../mcp_fs/mk_mcp_fs/mk_mcp_fs 2048 50 tmp main.4th
 	echo 'const unsigned char fs_bin[2048 * 50] __attribute__((aligned(2048))) = {' > fs_bin.c
 	cat tmp | xxd -i >> fs_bin.c
 	echo '};' >> fs_bin.c
