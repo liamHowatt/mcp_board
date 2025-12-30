@@ -30,8 +30,13 @@ resource_id_disp MCP_PINS_PIN_SPI_CS   2 route
 resource_id_sd   MCP_PINS_PIN_SPI_CS   0 route
 resource_id_sd   MCP_PINS_PIN_SPI_MISO 1 route
 
+con resource_id_sd mcpd_resource_get_path
+dup s" sd get_path failure" assert_msg
+s" /mnt/sd" drop s" littlefs" drop 0 0 mount
+if ." error mounting sd card as littlefs" cr then
+
 con resource_id_disp mcpd_resource_get_path
-dup s" get_path failure" assert_msg
+dup s" disp spi get_path failure" assert_msg
 O_RDONLY 0 open
 dup -1 <> s" open failure" assert_msg constant fd
 
