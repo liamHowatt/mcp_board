@@ -36,7 +36,9 @@ static int write_block(void * cb_ctx, int block_index, const void * vsrc)
 
     FLASH_EraseInitTypeDef erase_dsc = {
         .TypeErase = FLASH_TYPEERASE_PAGES,
+#ifndef STM32C0
         .Banks = FLASH_BANK_1,
+#endif
         .Page = mmfs->block0_page_id + block_index,
         .NbPages = 1
     };
