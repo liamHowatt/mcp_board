@@ -29,7 +29,7 @@ dup 0 >= s" SPI resource acquire failure" assert_msg constant resource_id
 MCP_PINS_PIN_SPI_CLK  3 route
 MCP_PINS_PIN_SPI_MOSI 1 route
 MCP_PINS_PIN_SPI_CS   2 route
-MCP_PINS_PIN_SPI_MISO 3 route
+\ MCP_PINS_PIN_SPI_MISO 3 route
 
 con resource_id mcpd_resource_get_path
 dup s" get path failure" assert_msg
@@ -165,7 +165,8 @@ buf LCDPI_RD q 0 q 0 qdowrite
 50 ms
 
 32000000 setfreq
-read1 dup 170 <> if ." warning: display product code was not 170. it was " dup . cr then drop
+\ if MISO is routed, the value read should be the product code: 170 (0xAA)
+read1 drop
 normfreq setfreq
 
 \ init onewire
