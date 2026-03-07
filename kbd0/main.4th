@@ -104,7 +104,7 @@ here constant mapping
 : d3 dup 2dup ;
 
 LV_KEY_ESC d3 m                'q' u '1' '!' m   'w' u '2' '@' m   'e' u '3' '#' m   'r' u '4' '$' m   't' u '5' '%' m   'y' u '6' '^' m    'u' u '7' '&' m   'i' u '8' '*' m   'o' u '9' '(' m   'p' u '0' ')' m   LV_KEY_BACKSPACE LV_KEY_DEL d2 m
-LV_KEY_NEXT LV_KEY_PREV d2 m   'a' u '`' '~' m   's' ud2 m         'd' ud2 m         'f' ud2 m         'g' u '-' dup m   'h' u '=' '+' m    'j' u '[' '{' m   'k' u ']' '}' m   'l' u '\' '|' m   ';' ':' ''' '"' m '\n' d3 m
+LV_KEY_NEXT LV_KEY_PREV d2 m   'a' u '`' '~' m   's' ud2 m         'd' ud2 m         'f' ud2 m         'g' u '-' '_' m   'h' u '=' '+' m    'j' u '[' '{' m   'k' u ']' '}' m   'l' u '\' '|' m   ';' ':' ''' '"' m '\n' d3 m
 shpl d3 m                      0 d3 m            'z' ud2 m         'x' ud2 m         'c' ud2 m         'v' ud2 m         'b' u ',' '<' m    'n' u '.' '>' m   'm' u '/' '?' m   LV_KEY_UP d3 m    0 d3 m            shpl d3 m
 sh d3 m                        0 d3 m            0 d3 m            sp d3 m           sp d3 m           sp d3 m           sp d3 m            LV_KEY_LEFT d3 m  LV_KEY_DOWN d3 m  LV_KEY_RIGHT d3 m 0 d3 m            sh d3 m
 LV_KEY_UP d3 m LV_KEY_DOWN d3 m LV_KEY_LEFT d3 m LV_KEY_RIGHT d3 m LV_KEY_ENTER d3 m
