@@ -95,34 +95,53 @@ def main():
 
         cfg = get_cfg()
         imports = cfg.get("imports", ())
+        imports_contents = [os.listdir(lib) for lib in imports]
         single_source_file_imports = cfg.get("single_source_file_imports", ())
         excludes = set(cfg.get("excludes", ()))
         with open(makefile_path, "w") as f:
+
             parts = makefile.partition("C_SOURCES =  \\\n")
             assert parts[1]
             f.write(parts[0])
             f.write(parts[1])
-            # f.write("".join(s + " \\\n" for s in subprocess.run("find -L app -name *.c", shell=True, capture_output=True).stdout.decode().splitlines()))
             f.write("".join(s + " \\\n" for s in chain.from_iterable(
-                (posixpath.join("..", lib, file) for file in os.listdir(lib) if file.endswith(".c") and posixpath.join(lib, file) not in excludes)
-                for lib
-                in imports
+                (posixpath.join("..", lib, file) for file in lib_contents if file.endswith(".c") and posixpath.join(lib, file) not in excludes)
+                for lib, lib_contents
+                in zip(imports, imports_contents)
             )))
             f.write("".join(
                 posixpath.join("..", file) + " \\\n"
                 for file
                 in single_source_file_imports
+                if not file.endswith(".s")
             ))
+
+            parts = parts[2].partition("ASM_SOURCES =  \\\n")
+            assert parts[1]
+            f.write(parts[0])
+            f.write(parts[1])
+            f.write("".join(s + " \\\n" for s in chain.from_iterable(
+                (posixpath.join("..", lib, file) for file in lib_contents if file.endswith(".s") and posixpath.join(lib, file) not in excludes)
+                for lib, lib_contents
+                in zip(imports, imports_contents)
+            )))
+            f.write("".join(
+                posixpath.join("..", file) + " \\\n"
+                for file
+                in single_source_file_imports
+                if file.endswith(".s")
+            ))
+
             parts = parts[2].partition("# CFLAGS\n#######################################\n")
             assert parts[1]
             f.write(parts[0])
             f.write(parts[1])
             f.write(f"CFLAGS += {cfg.get('additional_cflags', '')}\n\n")
+
             parts = parts[2].partition("C_INCLUDES =  \\\n")
             assert parts[1]
             f.write(parts[0])
             f.write(parts[1])
-            # f.write("".join("-I" + s + " \\\n" for s in subprocess.run("find -L app -name *.h | xargs dirname", shell=True, capture_output=True).stdout.decode().splitlines()))
             f.write("".join(f"-I{s} \\\n" for s in (posixpath.join("..", lib) for lib in imports)))
             f.write(parts[2])
 

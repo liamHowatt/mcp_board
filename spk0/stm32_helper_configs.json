@@ -1,0 +1,20 @@
+{
+    "imports": [
+        "."
+    ],
+    "single_source_file_imports": [
+        "../mcp_bitbang/mcp_bitbang_client.c",
+        "../mcp_module/mcp_module.c",
+        "../mcp_module_stm32/mcp_module_stm32.c",
+        "../digest/digest/sha2.c",
+        "../digest/digest/finalize.c"
+    ],
+    "additional_cflags": "-DMCP_MODULE_STM32_HAL_HEADER='\"../spk0/hal_header.h\"'",
+    "project_name": "stm32cubemx",
+    "pyocd_target": "STM32G051K6Tx",
+    "pyocd_args": [
+    ],
+    "replace": [
+        {"file": "Makefile", "old": "vpath %.c $(sort $(dir $(C_SOURCES)))", "new": "vpath %.c Src $(sort $(dir $(C_SOURCES)))"}
+    ]
+}
