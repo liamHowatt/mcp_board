@@ -16,6 +16,7 @@
 .thumb
 
 .extern handle_framing_error
+.extern volume_shift
 .global SPI1_IRQHandler
 
   .section .text.SPI1_IRQHandler,"ax",%progbits
@@ -28,7 +29,7 @@ SPI1_IRQHandler:
   // clearing the OVR flag, if ever set.
   // Reading SR alone is enough to clear
   // UDR and FRE.
-  ldr   r1, [r2, SPI_DR] // the sample
+  ldrh  r1, [r2, SPI_DR] // the sample
   ldr   r0, [r2, SPI_SR] // status flags
 
   // If there's a framing error, jump down
@@ -43,7 +44,12 @@ SPI1_IRQHandler:
   // Convert from signed PCM to unsigned PCM
   movs  r3, 1
   lsls  r3, 15     /* 32768 */
-  adds  r1, r3
+  eors  r1, r3
+
+  // reduce volume
+  ldr   r3, =volume_shift
+  ldrb  r3, [r3]
+  lsrs  r1, r3
 
   str   r1, [r2, DAC_DHR12L1] // set DAC value
 

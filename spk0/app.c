@@ -9,6 +9,10 @@ char logln_buf[256];
 extern I2S_HandleTypeDef hi2s1;
 extern DAC_HandleTypeDef hdac1;
 
+extern TIM_HandleTypeDef htim16;
+
+volatile uint8_t volume_shift;
+
 static uint16_t i2s_word;
 
 static const mcp_module_stm32_pin_t clk_dat_pins[2] = {
@@ -73,6 +77,42 @@ void handle_framing_error(void)
     __HAL_I2S_ENABLE(&hi2s1);
 }
 
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    static bool last3 = true;
+    static bool last4 = true;
+
+    uint16_t portb = GPIOB->IDR;
+    bool p3 = portb & GPIO_PIN_3;
+    bool p4 = portb & GPIO_PIN_4;
+
+    if(last3 && !p3) {
+        uint8_t vsh = volume_shift;
+        if(vsh != 32) {
+            if(vsh == 6) {
+                volume_shift = 32;
+            }
+            else {
+                volume_shift = vsh + 1;
+            }
+        }
+    }
+    last3 = p3;
+
+    if(last4 && !p4) {
+        uint8_t vsh = volume_shift;
+        if(vsh != 0) {
+            if(vsh == 32) {
+                volume_shift = 6;
+            }
+            else {
+                volume_shift = vsh - 1;
+            }
+        }
+    }
+    last4 = p4;
+}
+
 static void driver_protocol_cb(mcp_module_driver_handle_t * hdl, void * driver_protocol_ctx)
 {
     uint8_t whereami = mcp_module_driver_whereami(hdl);
@@ -88,6 +128,8 @@ void app_main(void) {
     HAL_DAC_Start(&hdac1, DAC_CHANNEL_1);
 
     HAL_I2S_Receive_IT(&hi2s1, &i2s_word, 1);
+
+    HAL_TIM_Base_Start_IT(&htim16);
 
     mcp_module_stm32_run(
         clk_dat_pins,
