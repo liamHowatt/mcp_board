@@ -9,7 +9,7 @@ char logln_buf[256];
 
 // #include <inttypes.h>
 #include <stdbool.h>
-#include <assert.h>
+#include "../mcp_assert.h"
 
 #define CRESET_B GPIOF, GPIO_PIN_0
 #define CDONE    GPIOC, GPIO_PIN_15

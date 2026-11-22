@@ -1,0 +1,7 @@
+stm32cubemx/*
+!stm32cubemx/stm32cubemx.ioc
+mac.bin
+fs_bin.c
+main.4th.gz
+main_4th_gz.h
+tmp

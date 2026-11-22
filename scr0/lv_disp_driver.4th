@@ -44,6 +44,7 @@ dup -1 <> s" open failure" assert_msg constant fd
 spi_trans_s callot constant trans
 spi_sequence_s callot constant seq
 
+mcpd_peer_id seq spi_sequence_s.dev + !
 8        seq spi_sequence_s.nbits + c!
 1        seq spi_sequence_s.ntrans + c!
 trans    seq spi_sequence_s.trans + !

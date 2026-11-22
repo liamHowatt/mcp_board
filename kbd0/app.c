@@ -7,7 +7,7 @@ char logln_buf[256];
 #include "../mcp_module_stm32/mcp_module_stm32.h"
 #include "../mcp_module_stm32/mcp_module_stm32_mcp_fs.h"
 
-#include <assert.h>
+#include "../mcp_assert.h"
 #include <string.h>
 
 #if FLASH_PAGE_SIZE != 2048

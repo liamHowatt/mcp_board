@@ -2,7 +2,7 @@
 #include "../digest/digest/sha2.h"
 
 #include <string.h>
-#include <assert.h>
+#include "../mcp_assert.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 

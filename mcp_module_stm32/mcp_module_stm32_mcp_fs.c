@@ -1,6 +1,6 @@
 #include "mcp_module_stm32_mcp_fs.h"
 
-#include <assert.h>
+#include "../mcp_assert.h"
 
 #ifdef FLASH_BANK_2
 #warning Multiple flash banks are present. Assuming FLASH_BANK_1.
@@ -10,10 +10,10 @@
 
 static int read_block(void * cb_ctx, int block_index, void * vdst)
 {
-    mcp_module_stm32_mcp_fs_t * mmfs = cb_ctx;
+    uint32_t block0_page_id = (uintptr_t) cb_ctx;
 
     uint8_t * dst = vdst;
-    volatile uint8_t * src_block = PAGE_ADDR(mmfs->block0_page_id + block_index);
+    volatile uint8_t * src_block = PAGE_ADDR(block0_page_id + block_index);
 
     uint64_t * dst_u64 = (uint64_t *) dst;
     volatile uint64_t * src_block_u64 = (volatile uint64_t *) src_block;
@@ -29,7 +29,7 @@ static int write_block(void * cb_ctx, int block_index, const void * vsrc)
 {
     HAL_StatusTypeDef res;
 
-    mcp_module_stm32_mcp_fs_t * mmfs = cb_ctx;
+    uint32_t block0_page_id = (uintptr_t) cb_ctx;
 
     res = HAL_FLASH_Unlock();
     if(res != HAL_OK) return -1;
@@ -39,7 +39,7 @@ static int write_block(void * cb_ctx, int block_index, const void * vsrc)
 #ifndef STM32C0
         .Banks = FLASH_BANK_1,
 #endif
-        .Page = mmfs->block0_page_id + block_index,
+        .Page = block0_page_id + block_index,
         .NbPages = 1
     };
     uint32_t page_error;
@@ -49,7 +49,7 @@ static int write_block(void * cb_ctx, int block_index, const void * vsrc)
         return -1;
     }
 
-    volatile uint8_t * dst_block = PAGE_ADDR(mmfs->block0_page_id + block_index);
+    volatile uint8_t * dst_block = PAGE_ADDR(block0_page_id + block_index);
     uint64_t * src = (uint64_t *) vsrc;
 
     for(uint32_t i = 0; i < FLASH_PAGE_SIZE; i += 8) {
@@ -67,6 +67,21 @@ static int write_block(void * cb_ctx, int block_index, const void * vsrc)
     return 0;
 }
 
+static void conf_init(
+    mfs_conf_t * conf,
+    void * aligned_aux_memory,
+    int first_block_page_number,
+    int block_count
+)
+{
+    conf->aligned_aux_memory = aligned_aux_memory;
+    conf->block_size = FLASH_PAGE_SIZE;
+    conf->block_count = block_count;
+    conf->cb_ctx = (void *)(uintptr_t) first_block_page_number;
+    conf->read_block = read_block;
+    conf->write_block = write_block;
+}
+
 int mcp_module_stm32_mcp_fs_init(
     mcp_module_stm32_mcp_fs_t * mmfs,
     void * aligned_aux_memory,
@@ -74,15 +89,7 @@ int mcp_module_stm32_mcp_fs_init(
     int block_count
 )
 {
-    mmfs->conf.aligned_aux_memory = aligned_aux_memory;
-    mmfs->conf.block_size = FLASH_PAGE_SIZE;
-    mmfs->conf.block_count = block_count;
-    mmfs->conf.cb_ctx = mmfs;
-    mmfs->conf.read_block = read_block;
-    mmfs->conf.write_block = write_block;
-
-    mmfs->block0_page_id = first_block_page_number;
-
+    conf_init(&mmfs->conf, aligned_aux_memory, first_block_page_number, block_count);
     return mfs_mount(&mmfs->mfs, &mmfs->conf);
 }
 
@@ -94,6 +101,17 @@ int mcp_module_stm32_mcp_fs_heatshrink_init(
 )
 {
     return mcp_module_stm32_mcp_fs_init(&mmfs->base, aligned_aux_memory, first_block_page_number, block_count);
+}
+
+int mcp_module_stm32_mcp_fs_mini_init(
+    mcp_module_stm32_mcp_fs_mini_t * mmfs,
+    void * aligned_aux_memory,
+    int first_block_page_number,
+    int block_count
+)
+{
+    conf_init(&mmfs->conf, aligned_aux_memory, first_block_page_number, block_count);
+    return mfs_mini_mount(&mmfs->mini, &mmfs->conf);
 }
 
 static mcp_module_rw_fs_result_t translate_error(int mfs_error)
@@ -296,6 +314,51 @@ static mcp_module_rw_fs_result_t op_write_heatshrink(void * vmmfs, const void * 
     return MCP_MODULE_RW_FS_RESULT_OK;
 }
 
+static mcp_module_rw_fs_result_t op_list_mini(void * vmmfs, void * cb_ctx, void (*cb)(void *, const char *))
+{
+    mcp_module_stm32_mcp_fs_mini_t * mmfs = vmmfs;
+    int res = mfs_mini_list_files(&mmfs->mini, cb_ctx, cb);
+    return translate_error(res);
+}
+
+static mcp_module_rw_fs_result_t op_delete_mini(void * vmmfs, const char *fname)
+{
+    mcp_module_stm32_mcp_fs_mini_t * mmfs = vmmfs;
+    int res = mfs_mini_delete(&mmfs->mini, fname);
+    return translate_error(res);
+}
+
+static mcp_module_rw_fs_result_t op_open_mini(void * vmmfs, bool is_read, const char *fname)
+{
+    mcp_module_stm32_mcp_fs_mini_t * mmfs = vmmfs;
+    int res = mfs_mini_open(&mmfs->mini, fname, is_read ? MFS_MODE_READ : MFS_MODE_WRITE);
+    return translate_error(res);
+}
+
+static mcp_module_rw_fs_result_t op_close_mini(void * vmmfs)
+{
+    mcp_module_stm32_mcp_fs_mini_t * mmfs = vmmfs;
+    int res = mfs_mini_close(&mmfs->mini);
+    return translate_error(res);
+}
+
+static mcp_module_rw_fs_result_t op_read_mini(void * vmmfs, void * dst, uint32_t size, uint32_t * actually_read)
+{
+    mcp_module_stm32_mcp_fs_mini_t * mmfs = vmmfs;
+    int res = mfs_mini_read(&mmfs->mini, dst, size);
+    if(res < 0) return translate_error(res);
+    *actually_read = res;
+    return MCP_MODULE_RW_FS_RESULT_OK;
+}
+
+static mcp_module_rw_fs_result_t op_write_mini(void * vmmfs, const void * src, uint32_t size)
+{
+    mcp_module_stm32_mcp_fs_mini_t * mmfs = vmmfs;
+    int res = mfs_mini_write(&mmfs->mini, src, size);
+    if(res < 0) return translate_error(res);
+    return MCP_MODULE_RW_FS_RESULT_OK;
+}
+
 const mcp_module_rw_fs_vtable_t mcp_module_stm32_mcp_fs_rw_fs_vtable = {
     .list = op_list,
     .delete = op_delete,
@@ -312,4 +375,13 @@ const mcp_module_rw_fs_vtable_t mcp_module_stm32_mcp_fs_heatshrink_rw_fs_vtable 
     .close = op_close_heatshrink,
     .read = op_read_heatshrink,
     .write = op_write_heatshrink
+};
+
+const mcp_module_rw_fs_vtable_t mcp_module_stm32_mcp_fs_mini_rw_fs_vtable = {
+    .list = op_list_mini,
+    .delete = op_delete_mini,
+    .open = op_open_mini,
+    .close = op_close_mini,
+    .read = op_read_mini,
+    .write = op_write_mini
 };

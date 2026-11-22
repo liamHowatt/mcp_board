@@ -1,5 +1,5 @@
 #include "mcp_module_stm32.h"
-#include <assert.h>
+#include "../mcp_assert.h"
 
 typedef struct {
     const mcp_module_stm32_pin_t * clk_dat_pins;
